@@ -5,4 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "becker"))
+REPOSITORY_ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+sys.path.insert(0, str(REPOSITORY_ROOT / "custom_components" / "becker"))
