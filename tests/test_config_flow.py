@@ -179,8 +179,8 @@ def test_update_cover_options_rejects_unsafe_combinations() -> None:
         )
 
 
-def test_config_entry_cover_has_device_hierarchy_and_combined_position_tracking() -> None:
-    """UI covers become child devices and templates can correct travel-time positions."""
+def test_config_entry_cover_has_device_info_and_combined_position_tracking() -> None:
+    """UI covers become devices and templates can correct travel-time positions."""
     entity = BeckerEntity(
         object(),
         "Wohnzimmer rechts",
@@ -199,7 +199,7 @@ def test_config_entry_cover_has_device_hierarchy_and_combined_position_tracking(
     )
 
     assert entity.device_info["identifiers"] == {(DOMAIN, "cover-2:4")}
-    assert entity.device_info["via_device"] == (DOMAIN, "becker-centronic-usb")
+    assert "via_device" not in entity.device_info
     assert entity.supported_features & CoverEntityFeature.SET_POSITION
 
 

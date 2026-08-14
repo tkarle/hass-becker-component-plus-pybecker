@@ -15,10 +15,8 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     CONF_MIGRATION_PENDING,
     DATA_CONFIG_ENTRY_ACTIVE,
-    DEFAULT_HUB_TITLE,
     DOMAIN,
     HUB_UNIQUE_ID,
-    MANUFACTURER,
 )
 from .pybecker.becker_helper import BeckerConnectionError
 from .rf_device import PyBecker
@@ -62,14 +60,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except (BeckerConnectionError, OSError, ValueError) as err:
         raise ConfigEntryError(str(err)) from err
 
+    # Beta 3 briefly registered the USB stick as an additional device. The
+    # config entry itself already represents that hub in Home Assistant, so
+    # the extra device duplicated the hub row and inflated the device count.
     device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, HUB_UNIQUE_ID)},
-        manufacturer=MANUFACTURER,
-        model="Centronic USB Stick",
-        name=DEFAULT_HUB_TITLE,
+    duplicate_hub = device_registry.async_get_device(
+        identifiers={(DOMAIN, HUB_UNIQUE_ID)}
     )
+    if duplicate_hub and entry.entry_id in duplicate_hub.config_entries:
+        device_registry.async_remove_device(duplicate_hub.id)
 
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

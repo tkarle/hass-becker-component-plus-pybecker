@@ -48,7 +48,6 @@ from .const import (
     DATA_YAML_CONFIG,
     DEVICE_CLASS,
     DOMAIN,
-    HUB_UNIQUE_ID,
     INTERMEDIATE_POSITION,
     MANUFACTURER,
     OPEN_POSITION,
@@ -260,7 +259,6 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 manufacturer=MANUFACTURER,
                 model="Centronic cover",
                 name=name,
-                via_device=(DOMAIN, HUB_UNIQUE_ID),
             )
         self._attr[CONF_CHANNEL] = str(channel)
         self._cover_features = COVER_FEATURES
