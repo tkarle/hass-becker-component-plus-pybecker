@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.const import (
     CONF_COVERS,
@@ -24,15 +25,28 @@ from custom_components.becker.config_flow import (
     DatabaseOutsideConfigError,
     InvalidDatabaseError,
     prepare_covers,
+    update_cover_options,
     validate_database,
 )
 from custom_components.becker.const import (
     CONF_CHANNEL,
     CONF_INTERMEDIATE_POSITION,
+    CONF_INTERMEDIATE_POSITION_DOWN,
+    CONF_INTERMEDIATE_POSITION_UP,
     CONF_MIGRATION_PENDING,
+    CONF_REMOTE_ID,
+    CONF_TILT_BLIND,
+    CONF_TILT_INTERMEDIATE,
+    CONF_TILT_MODE,
+    CONF_TILT_TIME_BLIND,
+    CONF_TRAVELLING_TIME_DOWN,
+    CONF_TRAVELLING_TIME_UP,
     DATA_YAML_CONFIG,
     DOMAIN,
+    TILT_MODE_BLIND,
+    TILT_MODE_INTERMEDIATE,
 )
+from custom_components.becker.cover import BeckerEntity
 from custom_components.becker.pybecker.database import Database
 
 
@@ -116,6 +130,77 @@ def test_prepare_covers_rejects_unpaired_or_duplicate_channels() -> None:
             },
             frozenset({1, 2}),
         )
+
+
+def test_update_cover_options_preserves_channel_and_normalizes_modes() -> None:
+    """Per-cover UI edits remain primitive and cannot silently change the RF channel."""
+    result = update_cover_options(
+        {
+            CONF_CHANNEL: "2:4",
+            CONF_FRIENDLY_NAME: "Wohnzimmer rechts",
+        },
+        {
+            CONF_FRIENDLY_NAME: "Wohnzimmer rechts",
+            CONF_TRAVELLING_TIME_UP: 31.5,
+            CONF_TRAVELLING_TIME_DOWN: 27,
+            CONF_REMOTE_ID: "abcde:2, 12345:f",
+            CONF_INTERMEDIATE_POSITION: True,
+            CONF_INTERMEDIATE_POSITION_UP: 30,
+            CONF_INTERMEDIATE_POSITION_DOWN: 70,
+            CONF_TILT_MODE: TILT_MODE_BLIND,
+            CONF_TILT_TIME_BLIND: 0.4,
+        },
+    )
+
+    assert result[CONF_CHANNEL] == "2:4"
+    assert result[CONF_TRAVELLING_TIME_UP] == 31.5
+    assert result[CONF_REMOTE_ID] == "ABCDE:2, 12345:F"
+    assert result[CONF_TILT_BLIND] is True
+    assert result[CONF_TILT_INTERMEDIATE] is False
+
+
+def test_update_cover_options_rejects_unsafe_combinations() -> None:
+    """The UI rejects malformed remotes and impossible intermediate tilt settings."""
+    base = {
+        CONF_FRIENDLY_NAME: "Test",
+        CONF_INTERMEDIATE_POSITION: False,
+        CONF_INTERMEDIATE_POSITION_UP: 25,
+        CONF_INTERMEDIATE_POSITION_DOWN: 75,
+        CONF_TILT_MODE: TILT_MODE_INTERMEDIATE,
+        CONF_TILT_TIME_BLIND: 0.3,
+    }
+    with pytest.raises(ValueError, match="requires an intermediate"):
+        update_cover_options({CONF_CHANNEL: "1:1"}, base)
+
+    with pytest.raises(ValueError, match="remote ID"):
+        update_cover_options(
+            {CONF_CHANNEL: "1:1"},
+            {**base, CONF_INTERMEDIATE_POSITION: True, CONF_REMOTE_ID: "wrong"},
+        )
+
+
+def test_config_entry_cover_has_device_hierarchy_and_combined_position_tracking() -> None:
+    """UI covers become child devices and templates can correct travel-time positions."""
+    entity = BeckerEntity(
+        object(),
+        "Wohnzimmer rechts",
+        "2:4",
+        object(),
+        None,
+        27,
+        31.5,
+        25,
+        75,
+        True,
+        True,
+        False,
+        0.3,
+        create_devices=True,
+    )
+
+    assert entity.device_info["identifiers"] == {(DOMAIN, "cover-2:4")}
+    assert entity.device_info["via_device"] == (DOMAIN, "becker-centronic-usb")
+    assert entity.supported_features & CoverEntityFeature.SET_POSITION
 
 
 def test_yaml_import_creates_a_passive_lossless_entry(tmp_path: Path) -> None:

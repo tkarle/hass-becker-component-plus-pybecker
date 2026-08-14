@@ -23,6 +23,7 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import (
     TrackTemplate,
     async_call_later,
@@ -47,7 +48,9 @@ from .const import (
     DATA_YAML_CONFIG,
     DEVICE_CLASS,
     DOMAIN,
+    HUB_UNIQUE_ID,
     INTERMEDIATE_POSITION,
+    MANUFACTURER,
     OPEN_POSITION,
     RECEIVE_MESSAGE,
     REMOTE_ID,
@@ -108,7 +111,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     """Set up covers belonging to a UI-configured Becker hub."""
     config = {**entry.data, **entry.options}
-    await _async_setup_covers(config, async_add_entities)
+    await _async_setup_covers(config, async_add_entities, create_devices=True)
 
 
 def serialize_platform_config(config) -> dict:
@@ -131,7 +134,7 @@ def serialize_platform_config(config) -> dict:
     return result
 
 
-async def _async_setup_covers(config, async_add_entities):
+async def _async_setup_covers(config, async_add_entities, *, create_devices=False):
     """Create cover entities from either YAML or config-entry data."""
     covers = []
 
@@ -218,6 +221,7 @@ async def _async_setup_covers(config, async_add_entities):
                 tilt_intermediate,
                 tilt_blind,
                 tilt_time_blind,
+                create_devices=create_devices,
             )
         )
 
@@ -242,12 +246,22 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         tilt_intermediate,
         tilt_blind,
         tilt_time_blind,
+        *,
+        create_devices=False,
     ):
         """Init the Becker entity."""
         self._becker = becker
         self._name = name
         self._attr = dict()
         self._channel = channel
+        if create_devices:
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"cover-{channel}")},
+                manufacturer=MANUFACTURER,
+                model="Centronic cover",
+                name=name,
+                via_device=(DOMAIN, HUB_UNIQUE_ID),
+            )
         self._attr[CONF_CHANNEL] = str(channel)
         self._cover_features = COVER_FEATURES
         # Template
@@ -275,8 +289,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         # Callbacks
         self._callbacks = dict()
         # Setup TravelCalculator
-        # todo enable set position and self_template
-        if not ((travel_time_down or travel_time_up) is None or self._template is not None):
+        if travel_time_down is not None or travel_time_up is not None:
             self._cover_features |= CoverEntityFeature.SET_POSITION
 
         travel_time_down = travel_time_down or travel_time_up or 0

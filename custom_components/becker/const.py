@@ -18,9 +18,16 @@ MANUFACTURER = "Becker"
 
 DEFAULT_DATABASE_PATH = "/config/centronic-stick.db"
 DEFAULT_HUB_TITLE = "Becker Centronic USB"
+HUB_UNIQUE_ID = "becker-centronic-usb"
 
 CONF_ADD_ANOTHER = "add_another"
 CONF_MIGRATION_PENDING = "migration_pending"
+CONF_SELECTED_COVER = "selected_cover"
+CONF_TILT_MODE = "tilt_mode"
+
+TILT_MODE_NONE = "none"
+TILT_MODE_INTERMEDIATE = "intermediate"
+TILT_MODE_BLIND = "blind"
 
 DATA_CONFIG_ENTRY_ACTIVE = "config_entry_active"
 DATA_YAML_CONFIG = "yaml_config"

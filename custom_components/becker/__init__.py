@@ -9,12 +9,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_MIGRATION_PENDING,
     DATA_CONFIG_ENTRY_ACTIVE,
+    DEFAULT_HUB_TITLE,
     DOMAIN,
+    HUB_UNIQUE_ID,
+    MANUFACTURER,
 )
 from .pybecker.becker_helper import BeckerConnectionError
 from .rf_device import PyBecker
@@ -57,6 +61,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     except (BeckerConnectionError, OSError, ValueError) as err:
         raise ConfigEntryError(str(err)) from err
+
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, HUB_UNIQUE_ID)},
+        manufacturer=MANUFACTURER,
+        model="Centronic USB Stick",
+        name=DEFAULT_HUB_TITLE,
+    )
 
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

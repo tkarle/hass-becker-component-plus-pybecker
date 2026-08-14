@@ -46,6 +46,13 @@
   },
   "options": {
     "step": {
+      "init": {
+        "title": "Becker settings",
+        "menu_options": {
+          "hub": "USB hub and counter database",
+          "select_cover": "Configure a cover"
+        }
+      },
       "activate": {
         "title": "Activate the imported UI hub",
         "description": "Continue only after the legacy Becker YAML platform has been removed and Home Assistant has restarted. The existing counter database will be reused without being changed or recreated."
@@ -57,6 +64,38 @@
           "device": "Serial device",
           "filename": "Existing counter database"
         }
+      },
+      "select_cover": {
+        "title": "Select a cover",
+        "data": {
+          "selected_cover": "Cover"
+        }
+      },
+      "cover_options": {
+        "title": "Configure {name}",
+        "description": "Channel {channel} remains unchanged. Supplying at least one travel time enables position tracking and the position slider.",
+        "data": {
+          "friendly_name": "Name",
+          "travelling_time_up": "Full travel time up",
+          "travelling_time_down": "Full travel time down",
+          "value_template": "Position value template",
+          "remote_id": "Physical remote IDs",
+          "intermediate_position": "Enable programmed intermediate positions",
+          "intermediate_position_up": "Tracked position after intermediate UP",
+          "intermediate_position_down": "Tracked position after intermediate DOWN",
+          "tilt_mode": "Tilt controls",
+          "tilt_time_blind": "Short pulse duration for blind tilt"
+        },
+        "data_description": {
+          "travelling_time_up": "Seconds from fully closed to fully open. If only one direction is entered, it is used for both.",
+          "travelling_time_down": "Seconds from fully open to fully closed.",
+          "value_template": "Optional advanced template returning 0–100, open/closed, true/false, or an unknown value.",
+          "remote_id": "Optional IDs such as 12345:2. Separate multiple IDs with commas.",
+          "intermediate_position_up": "Home Assistant position in percent for the programmed UP double-press target.",
+          "intermediate_position_down": "Home Assistant position in percent for the programmed DOWN double-press target.",
+          "tilt_mode": "Intermediate maps tilt buttons to programmed intermediate targets. Blind sends a short UP/DOWN pulse.",
+          "tilt_time_blind": "Used only in Blind mode."
+        }
       }
     },
     "error": {
@@ -64,7 +103,19 @@
       "database_missing": "The existing Becker counter database was not found.",
       "database_outside_config": "The database must be stored inside the Home Assistant config folder.",
       "invalid_database": "This file is not an intact Becker counter database.",
-      "device_not_found": "The selected serial device is not currently available."
+      "device_not_found": "The selected serial device is not currently available.",
+      "invalid_cover_config": "These cover settings are not valid.",
+      "invalid_remote_id": "Use five hexadecimal characters, a colon, and one channel character, for example 12345:2.",
+      "tilt_requires_intermediate": "Intermediate tilt controls require programmed intermediate positions to be enabled."
+    }
+  },
+  "selector": {
+    "tilt_mode": {
+      "options": {
+        "none": "Disabled",
+        "intermediate": "Programmed intermediate positions",
+        "blind": "Blind tilt with short pulse"
+      }
     }
   }
 }

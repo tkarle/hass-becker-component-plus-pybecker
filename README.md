@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.2` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.3` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -56,6 +56,13 @@ twice. Complete the handover in this order:
 
 Existing entity IDs are retained through their Becker channel unique IDs. Do
 not run a Raspberry Pi MQTT bridge or another copy of pybecker at the same time.
+
+Each UI-configured cover is registered as its own Home Assistant device below
+the Becker USB hub. Open the hub's **Configure** dialog and choose **Configure a
+cover** to edit its name, travel times, optional position template, physical
+remote IDs, intermediate positions and tilt behavior. Providing at least one
+travel time enables position tracking and the position slider; a value template
+can additionally correct the tracked position.
 
 The YAML format below remains available for compatibility and advanced options.
 
