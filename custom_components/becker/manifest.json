@@ -1,0 +1,13 @@
+{
+  "domain": "becker",
+  "name": "Becker",
+  "codeowners": ["@nicolasberthel", "@RainerStaude", "@tkarle"],
+  "dependencies": [],
+  "documentation": "https://github.com/tkarle/hass-becker-component-plus-pybecker",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/tkarle/hass-becker-component-plus-pybecker/issues",
+  "loggers": ["custom_components.becker.pybecker"],
+  "requirements": ["pyserial==3.5"],
+  "version": "0.4.0-beta.1"
+}

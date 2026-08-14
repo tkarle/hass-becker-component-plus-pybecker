@@ -1,5 +1,5 @@
 """
-Module TravelCalculator provides functionality for predicting the current position of a Cover.
+Module TravelCalculator provides functionality for predicting the current position of a cover.
 
 E.g.:
 
@@ -13,8 +13,8 @@ From https://github.com/XKNX
 """
 from __future__ import annotations
 
-from enum import Enum
 import time
+from enum import Enum
 
 
 class TravelStatus(Enum):

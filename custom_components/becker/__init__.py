@@ -1,4 +1,4 @@
-"""The becker component."""
+"""The Becker component."""
 import logging
 
 from .rf_device import PyBecker

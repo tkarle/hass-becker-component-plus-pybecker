@@ -1,8 +1,7 @@
 import argparse
 import asyncio
-import time
 
-from pybecker.becker import Becker
+from .becker import Becker
 
 
 async def main():
@@ -12,8 +11,8 @@ async def main():
     parser.add_argument(
         '-a',
         '--action',
-        choices=['UP', 'UP2', 'DOWN', 'DOWN2', 'HALT', 'PAIR'],
-        help='Command to execute (UP, DOWN, HALT, PAIR)',
+        choices=['UP', 'UP2', 'DOWN', 'DOWN2', 'HALT', 'TRAIN'],
+        help='Command to execute (UP, DOWN, HALT, TRAIN)',
     )
     parser.add_argument('-d', '--device', help='Device to use for connectivity')
     parser.add_argument('-f', '--file', help='Database file')
@@ -31,14 +30,16 @@ async def main():
     if args.log is None:
         callback = None
     else:
-        commands = {'1':'HALT', '2':'UP', '4':'DOWN',}
-        callback = lambda packet: print(
-              "Received packet: "
-            + "unit_id: {}, ".format(packet.group('unit_id').decode())
-            + "channel: {}, ".format(packet.group('channel').decode())
-            + "command: {}, ".format(commands[packet.group('command').decode()])
-            + "argument: {}".format(packet.group('argument').decode())
-        )
+        commands = {"1": "HALT", "2": "UP", "4": "DOWN"}
+
+        def callback(packet):
+            print(
+                "Received packet: "
+                f"unit_id: {packet.group('unit_id').decode()}, "
+                f"channel: {packet.group('channel').decode()}, "
+                f"command: {commands.get(packet.group('command').decode(), 'UNKNOWN')}, "
+                f"argument: {packet.group('argument').decode()}"
+            )
 
     client = Becker(device_name=args.device, db_filename=args.file, callback=callback)
 
@@ -52,13 +53,11 @@ async def main():
         await client.move_down(args.channel)
     elif args.action == "DOWN2":
         await client.move_down_intermediate(args.channel)
-    elif args.action == "PAIR":
+    elif args.action == "TRAIN":
         await client.pair(args.channel)
 
     # wait for log
-    timeout = time.time() + (args.log or 0)
-    while timeout > time.time():
-        time.sleep(0.01)
+    await asyncio.sleep(args.log or 0)
 
     # graceful shutdown
     client.close()

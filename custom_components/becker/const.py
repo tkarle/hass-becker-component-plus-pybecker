@@ -1,4 +1,4 @@
-"""Becker Cover Constants."""
+"""Becker cover constants."""
 
 import re
 

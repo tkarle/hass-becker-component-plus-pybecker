@@ -1,5 +1,11 @@
 # Becker cover support for Home Assistant
 
+> [!WARNING]
+> Version `0.4.0-beta.1` is a development build for Home Assistant 2026.8.
+> Keep a backup of `centronic-stick.db` and ensure only one controller (the
+> Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
+> counters at a time.
+
 A native Home Assistant component to control Becker RF shutters with a Becker Centronic USB stick.
 It works with the Becker ***Centronic USB Stick*** with the Becker order number ***4035 200 041 0*** and ***4035 000 041 0***.
 It works for the Becker ***Centronic*** roller shutters, blinds and sun protection as well as for Roto roof windows with RF remotes.  
@@ -20,10 +26,10 @@ There are three ways to track position of the cover:
 
 # Installation
 
-1. Add [this](https://github.com/RainerStaude/hass-becker-component-plus-pybecker) repository to HACS custom
+1. Add [this](https://github.com/tkarle/hass-becker-component-plus-pybecker) repository to HACS custom
    repositories (preferred).  
-   Alternatively copy the files of this [this](https://github.com/RainerStaude/hass-becker-component-plus-pybecker)
-   repository into the custom_components folder of your HA configuration directory.  
+   Alternatively copy `custom_components/becker` from this repository into the
+   `custom_components` folder of your HA configuration directory.
 2. Plug the Becker USB stick into any free USB port. It is a good practice to add a short USB extension cable
    and place the Becker USB stick away from other RF sources.  
 3. Add the Becker integration to your configuration.  
@@ -64,9 +70,9 @@ Therefore connections e.g.  over a TCP/IP socket are supported as well.
 
 The Becker integration uses a database file `centronic-stick.db` located in the 
 Home Assistant configuration folder to store an incremental number for each unit.
-You can change the filename if needed. If the database file gets lost it will be
-restored on startup automatically. In case any cover does not respond press the STOP 
-button several times.
+You can change the filename if needed. The rolling counters cannot be reconstructed
+safely if this file is lost. Back it up before migration and never restore an older
+copy after newer commands have been transmitted.
 ```yaml
 cover:
   - platform: becker
@@ -231,7 +237,9 @@ the same as with additional remotes. Please refer to you manual for more details
 You have to put your shutter in pairing mode before. This is done by pressing the 
 program button of your master remote until you hear a "clac" noise
 
-To pair your shutter run the service becker.pair once (see HA Developer Tools -> Services).
+To pair your shutter run the action `becker.pair` once (see HA Developer Tools -> Actions).
+This beta sends exactly one TRAIN telegram. TRAIN is reserved for pairing and is
+never used for normal travel commands.
 The shutter will confirm the successful pair with a single "clac" noise followed by a double "clac" noise.
 
 Example data for service becker.pair:

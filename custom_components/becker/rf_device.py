@@ -1,15 +1,14 @@
-"""Handling of the Becker USB device."""
+"""Handle the Becker USB device."""
 
 import codecs
 import logging
 import os
 
 import voluptuous as vol
-
-from homeassistant.helpers.dispatcher import dispatcher_send
-
-from .pybecker.becker import Becker
-from .pybecker.database import FILE_PATH, SQL_DB_FILE
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import callback as ha_callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     COMMANDS,
@@ -19,6 +18,8 @@ from .const import (
     RECEIVE_MESSAGE,
     REMOTE_PACKET_EVENT,
 )
+from .pybecker.becker import Becker
+from .pybecker.database import FILE_PATH, SQL_DB_FILE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,10 +35,23 @@ class PyBecker:
     """Manages a (single, global) pybecker Becker instance."""
 
     becker = None
+    _shutdown_registered = False
+    _hass = None
 
     @classmethod
-    def setup(cls, hass, device=None, filename=None):
+    async def async_setup(cls, hass, device=None, filename=None):
         """Initiate becker instance."""
+        cls.becker = await hass.async_add_executor_job(
+            cls._setup_sync, hass, device, filename
+        )
+        cls._hass = hass
+        if not cls._shutdown_registered:
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, cls._async_shutdown)
+            cls._shutdown_registered = True
+
+    @classmethod
+    def _setup_sync(cls, hass, device=None, filename=None):
+        """Resolve files and start the worker outside the event loop."""
         # Validate filename
         if filename is None:
             filename = SQL_DB_FILE
@@ -59,14 +73,30 @@ class PyBecker:
                     _LOGGER.warning("Filename %s does not exist. Create a new file.", file)
                     filename = os.path.join(hass.config.config_dir, file)
             else:
-                assert os.path.exists(path), f"Path of filename {filename} invalid or does not exist!"
+                if not os.path.exists(path):
+                    raise ValueError(
+                        f"Path of filename {filename} invalid or does not exist"
+                    )
                 # create a new file
                 _LOGGER.warning("Filename %s does not exist. Create a new file.", filename)
         _LOGGER.debug("Use filename: %s", filename)
-        # Setup callback function
-        callback = lambda packet: cls.callback(hass, packet)
-        # Setup Becker
-        cls.becker = Becker(device_name=device, init_dummy=False, db_filename=filename, callback=callback)
+
+        def receive_callback(packet):
+            cls.worker_callback(hass, packet)
+
+        # Opening SQLite and starting the worker can perform disk I/O. Keep it
+        # outside Home Assistant's event loop.
+        return Becker(device, False, filename, receive_callback)
+
+    @classmethod
+    async def _async_shutdown(cls, _event):
+        """Close the worker cleanly when Home Assistant stops."""
+        if cls.becker is not None:
+            becker = cls.becker
+            cls.becker = None
+            await cls._hass.async_add_executor_job(becker.close)
+        cls._shutdown_registered = False
+        cls._hass = None
 
     @classmethod
     async def async_register_services(cls, hass):
@@ -78,7 +108,8 @@ class PyBecker:
     @classmethod
     async def handle_pair(cls, call):
         """Service to pair with a cover receiver."""
-
+        if cls.becker is None:
+            raise ServiceValidationError("Becker integration is not initialized")
         channel = call.data.get(CONF_CHANNEL)
         unit = call.data.get(CONF_UNIT, 1)
         await cls.becker.pair(f"{unit}:{channel}")
@@ -86,6 +117,8 @@ class PyBecker:
     @classmethod
     async def handle_log_units(cls, call):
         """Service that logs all paired units."""
+        if cls.becker is None:
+            raise ServiceValidationError("Becker integration is not initialized")
         units = await cls.becker.list_units()
 
         # Apparently the SQLite results are implicitly returned in unit id
@@ -99,11 +132,17 @@ class PyBecker:
             )
             unit_id += 1
 
+    @classmethod
+    def worker_callback(cls, hass, packet):
+        """Move a worker-thread callback safely onto Home Assistant's loop."""
+        hass.loop.call_soon_threadsafe(cls._async_callback, hass, packet)
+
     @staticmethod
-    def callback(hass, packet):
-        """Handle Becker device callback for received packets."""
+    @ha_callback
+    def _async_callback(hass, packet):
+        """Handle a received packet on Home Assistant's event loop."""
         _LOGGER.debug("Received packet for dispatcher")
-        dispatcher_send(hass, f"{DOMAIN}.{RECEIVE_MESSAGE}", packet)
+        async_dispatcher_send(hass, f"{DOMAIN}.{RECEIVE_MESSAGE}", packet)
 
         # Also fire an explicit event that external applications can listen to
         # if that is of use to them.
@@ -115,4 +154,4 @@ class PyBecker:
         command_name = [nm for nm, cmd in COMMANDS.items() if cmd == command]
         if command_name:
             data["command"] = command_name[0]
-        hass.bus.fire(f"{DOMAIN}_{REMOTE_PACKET_EVENT}", data)
+        hass.bus.async_fire(f"{DOMAIN}_{REMOTE_PACKET_EVENT}", data)

@@ -3,8 +3,8 @@
 import logging
 import time
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
 from homeassistant.components.cover import (
     ATTR_CURRENT_POSITION,
     ATTR_POSITION,
@@ -21,14 +21,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 from homeassistant.exceptions import TemplateError
-import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import (
     TrackTemplate,
     async_call_later,
     async_track_template_result,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import (
     CLOSED_POSITION,
@@ -74,7 +73,9 @@ COVER_SCHEMA = vol.Schema(
         vol.Optional(CONF_TRAVELLING_TIME_DOWN): cv.positive_float,
         vol.Optional(CONF_TRAVELLING_TIME_UP): cv.positive_float,
         vol.Optional(CONF_INTERMEDIATE_POSITION_UP, default=VENTILATION_POSITION): cv.positive_int,
-        vol.Optional(CONF_INTERMEDIATE_POSITION_DOWN, default=INTERMEDIATE_POSITION): cv.positive_int,
+        vol.Optional(
+            CONF_INTERMEDIATE_POSITION_DOWN, default=INTERMEDIATE_POSITION
+        ): cv.positive_int,
         vol.Optional(CONF_INTERMEDIATE_DISABLE): cv.boolean,
         vol.Optional(CONF_INTERMEDIATE_POSITION, default=True): cv.boolean,
         vol.Optional(CONF_TILT_INTERMEDIATE): cv.boolean,
@@ -98,7 +99,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     device = config.get(CONF_DEVICE)
     filename = config.get(CONF_FILENAME)
     _LOGGER.debug("%s: %s; %s: %s", CONF_DEVICE, device, CONF_FILENAME, filename)
-    PyBecker.setup(hass, device=device, filename=filename)
+    await PyBecker.async_setup(hass, device=device, filename=filename)
 
     for device, device_config in config[CONF_COVERS].items():
         friendly_name = device_config.get(CONF_FRIENDLY_NAME, device)
@@ -109,7 +110,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         travel_time_up = device_config.get(CONF_TRAVELLING_TIME_UP)
         # Warning if both template and travelling time are set
         if (travel_time_down or travel_time_up) is not None and state_template is not None:
-            _LOGGER.warning('Both "%s" and "%s" are configured for cover %s. "%s" might influence with "%s"!',
+            _LOGGER.warning(
+                'Both "%s" and "%s" are configured for cover %s. '
+                '"%s" might influence with "%s"!',
                 CONF_VALUE_TEMPLATE,
                 CONF_TRAVELLING_TIME_UP.rpartition("_")[0],
                 friendly_name,
@@ -120,7 +123,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         intermediate_disable = device_config.get(CONF_INTERMEDIATE_DISABLE)
         if intermediate_disable is not None:
             _LOGGER.error(
-                "%s is no longer supported for cover %s. Please remove from your configuration.yaml and replace by %s: %s",
+                "%s is no longer supported for cover %s. Remove it from "
+                "configuration.yaml and replace it with %s: %s",
                 CONF_INTERMEDIATE_DISABLE,
                 friendly_name,
                 CONF_TILT_INTERMEDIATE,
@@ -128,7 +132,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             )
         else:
             intermediate_disable = False
-        intermediate_position = device_config.get(CONF_INTERMEDIATE_POSITION) and not intermediate_disable
+        intermediate_position = (
+            device_config.get(CONF_INTERMEDIATE_POSITION) and not intermediate_disable
+        )
         intermediate_pos_up = device_config.get(CONF_INTERMEDIATE_POSITION_UP)
         intermediate_pos_down = device_config.get(CONF_INTERMEDIATE_POSITION_DOWN)
         # tilt settings
@@ -267,8 +273,8 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     async def async_will_remove_from_hass(self):
         """Unsubscribe temporary callbacks."""
-        for callback in self._callbacks:
-            self._callbacks[callback]()
+        for callback_name in self._callbacks:
+            self._callbacks[callback_name]()
 
     @property
     def name(self):
@@ -330,6 +336,11 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         # would be updated regulary. This disables the automatic update, but we
         # have to notify hass whenever something changes.
         return False
+
+    @property
+    def available(self):
+        """Return whether the Becker USB stick is currently connected."""
+        return self._becker.connected
 
     async def async_open_cover(self, **kwargs):
         """Set the cover to the open position."""
@@ -499,7 +510,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 result = result.lower()
             if result in TEMPLATE_VALID_OPEN:
                 pos = OPEN_POSITION
-            elif TEMPLATE_VALID_CLOSE:
+            elif result in TEMPLATE_VALID_CLOSE:
                 pos = CLOSED_POSITION
             elif isinstance(result, int) or isinstance(result, float):
                 # Clip position to a range of 0 - 100
