@@ -1,0 +1,70 @@
+{
+  "title": "Becker Centronic USB",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Becker USB hub",
+        "description": "Select the Becker USB stick and an existing rolling-counter database. The UI will never create or replace this database.",
+        "data": {
+          "device": "Serial device",
+          "filename": "Existing counter database"
+        },
+        "data_description": {
+          "device": "Prefer the stable /dev/serial/by-id path.",
+          "filename": "Must be an existing centronic-stick.db inside the Home Assistant config folder."
+        }
+      },
+      "import_yaml": {
+        "title": "Import existing Becker setup",
+        "description": "Found {cover_count} existing covers on {device}, using {database}. Continue to copy this setup into a passive UI hub. YAML remains active until you explicitly complete the migration."
+      },
+      "cover": {
+        "title": "Add a Becker cover",
+        "description": "{cover_count} covers added so far. Only sender units already paired in the selected database are offered.",
+        "data": {
+          "friendly_name": "Name",
+          "channel": "Sender unit and channel",
+          "intermediate_position": "Enable programmed intermediate position",
+          "add_another": "Add another cover"
+        }
+      }
+    },
+    "error": {
+      "database_missing": "The existing Becker counter database was not found.",
+      "database_outside_config": "The database must be stored inside the Home Assistant config folder.",
+      "invalid_database": "This file is not an intact Becker counter database with sender units 1737b–1737f.",
+      "invalid_cover_config": "The existing cover configuration could not be imported safely.",
+      "device_not_found": "The selected serial device is not currently available.",
+      "duplicate_channel": "This channel has already been added.",
+      "sender_not_configured": "This sender unit is not paired in the selected database."
+    },
+    "abort": {
+      "already_configured": "This Becker USB hub is already configured.",
+      "single_instance_allowed": "Only one Becker USB hub can own the stick and counter database.",
+      "yaml_not_found": "No active Becker YAML setup was found."
+    }
+  },
+  "options": {
+    "step": {
+      "activate": {
+        "title": "Activate the imported UI hub",
+        "description": "Continue only after the legacy Becker YAML platform has been removed and Home Assistant has restarted. The existing counter database will be reused without being changed or recreated."
+      },
+      "hub": {
+        "title": "Becker hub settings",
+        "description": "Change only to another stable serial path or another existing, valid counter database.",
+        "data": {
+          "device": "Serial device",
+          "filename": "Existing counter database"
+        }
+      }
+    },
+    "error": {
+      "yaml_still_active": "The legacy Becker YAML platform is still loaded. Remove it and restart Home Assistant before activation.",
+      "database_missing": "The existing Becker counter database was not found.",
+      "database_outside_config": "The database must be stored inside the Home Assistant config folder.",
+      "invalid_database": "This file is not an intact Becker counter database.",
+      "device_not_found": "The selected serial device is not currently available."
+    }
+  }
+}

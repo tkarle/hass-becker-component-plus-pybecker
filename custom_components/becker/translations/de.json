@@ -1,0 +1,70 @@
+{
+  "title": "Becker Centronic USB",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Becker-USB-Hub einrichten",
+        "description": "Wähle den Becker-USB-Stick und eine vorhandene Rolling-Counter-Datenbank. Die Benutzeroberfläche erstellt oder ersetzt diese Datenbank niemals.",
+        "data": {
+          "device": "Serielles Gerät",
+          "filename": "Vorhandene Counter-Datenbank"
+        },
+        "data_description": {
+          "device": "Verwende möglichst den stabilen Pfad unter /dev/serial/by-id.",
+          "filename": "Muss eine vorhandene centronic-stick.db im Home-Assistant-Konfigurationsordner sein."
+        }
+      },
+      "import_yaml": {
+        "title": "Vorhandene Becker-Einrichtung übernehmen",
+        "description": "Gefunden: {cover_count} Rollläden/Jalousien an {device} mit {database}. Mit Weiter wird diese Einrichtung in einen zunächst passiven UI-Hub kopiert. YAML bleibt aktiv, bis du die Umstellung ausdrücklich abschließt."
+      },
+      "cover": {
+        "title": "Becker-Rollladen oder -Jalousie hinzufügen",
+        "description": "Bisher hinzugefügt: {cover_count}. Angeboten werden nur Sender, die in der gewählten Datenbank bereits angelernt sind.",
+        "data": {
+          "friendly_name": "Name",
+          "channel": "Sender und Kanal",
+          "intermediate_position": "Angelernte Zwischenposition aktivieren",
+          "add_another": "Weiteres Element hinzufügen"
+        }
+      }
+    },
+    "error": {
+      "database_missing": "Die vorhandene Becker-Counter-Datenbank wurde nicht gefunden.",
+      "database_outside_config": "Die Datenbank muss im Home-Assistant-Konfigurationsordner liegen.",
+      "invalid_database": "Die Datei ist keine intakte Becker-Counter-Datenbank mit den Sendern 1737b–1737f.",
+      "invalid_cover_config": "Die vorhandenen Rollladen-/Jalousie-Daten konnten nicht sicher übernommen werden.",
+      "device_not_found": "Das gewählte serielle Gerät ist momentan nicht verfügbar.",
+      "duplicate_channel": "Dieser Kanal wurde bereits hinzugefügt.",
+      "sender_not_configured": "Dieser Sender ist in der gewählten Datenbank nicht angelernt."
+    },
+    "abort": {
+      "already_configured": "Dieser Becker-USB-Hub ist bereits eingerichtet.",
+      "single_instance_allowed": "Nur ein Becker-USB-Hub darf Stick und Counter-Datenbank verwenden.",
+      "yaml_not_found": "Es wurde keine aktive Becker-YAML-Einrichtung gefunden."
+    }
+  },
+  "options": {
+    "step": {
+      "activate": {
+        "title": "Übernommenen UI-Hub aktivieren",
+        "description": "Fahre nur fort, nachdem die alte Becker-YAML-Plattform entfernt und Home Assistant neu gestartet wurde. Die vorhandene Counter-Datenbank wird unverändert weiterverwendet und niemals neu angelegt."
+      },
+      "hub": {
+        "title": "Becker-Hub-Einstellungen",
+        "description": "Ändere hier nur den stabilen seriellen Pfad oder wähle eine andere vorhandene und gültige Counter-Datenbank.",
+        "data": {
+          "device": "Serielles Gerät",
+          "filename": "Vorhandene Counter-Datenbank"
+        }
+      }
+    },
+    "error": {
+      "yaml_still_active": "Die alte Becker-YAML-Plattform ist noch geladen. Entferne sie und starte Home Assistant neu, bevor du den UI-Hub aktivierst.",
+      "database_missing": "Die vorhandene Becker-Counter-Datenbank wurde nicht gefunden.",
+      "database_outside_config": "Die Datenbank muss im Home-Assistant-Konfigurationsordner liegen.",
+      "invalid_database": "Die Datei ist keine intakte Becker-Counter-Datenbank.",
+      "device_not_found": "Das gewählte serielle Gerät ist momentan nicht verfügbar."
+    }
+  }
+}

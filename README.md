@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.1` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.2` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -32,10 +32,33 @@ There are three ways to track position of the cover:
    `custom_components` folder of your HA configuration directory.
 2. Plug the Becker USB stick into any free USB port. It is a good practice to add a short USB extension cable
    and place the Becker USB stick away from other RF sources.  
-3. Add the Becker integration to your configuration.  
-4. Reboot Home Assistant
+3. Add the Becker integration under **Settings → Devices & services**. Existing
+   YAML installations can be imported without re-entering their covers.
+4. Restart Home Assistant when the migration dialog asks you to do so.
 
 # Configuration
+## UI configuration and safe YAML migration
+
+The UI setup always requires an existing `centronic-stick.db`. It validates the
+database read-only and never creates, replaces or resets rolling counters. The
+database must be inside the Home Assistant configuration folder. Only sender
+units already paired in that database can be selected.
+
+When an active Becker YAML platform is detected, **Add hub** offers to copy its
+USB path, database path and all cover definitions. The resulting UI hub remains
+passive while YAML is loaded, so the serial port and database cannot be opened
+twice. Complete the handover in this order:
+
+1. Back up `centronic-stick.db`.
+2. Add the Becker hub in the UI and confirm the detected YAML import.
+3. Remove the legacy Becker YAML platform and restart Home Assistant.
+4. Open the imported Becker hub, choose **Configure**, and activate it.
+
+Existing entity IDs are retained through their Becker channel unique IDs. Do
+not run a Raspberry Pi MQTT bridge or another copy of pybecker at the same time.
+
+The YAML format below remains available for compatibility and advanced options.
+
 ## Basic configuration
 ```yaml
 cover:

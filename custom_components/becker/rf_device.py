@@ -19,6 +19,7 @@ from .const import (
     REMOTE_PACKET_EVENT,
 )
 from .pybecker.becker import Becker
+from .pybecker.becker_helper import BeckerConnectionError
 from .pybecker.database import FILE_PATH, SQL_DB_FILE
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,29 +37,54 @@ class PyBecker:
 
     becker = None
     _shutdown_registered = False
+    _shutdown_unsub = None
     _hass = None
+    _device = None
+    _filename = None
 
     @classmethod
-    async def async_setup(cls, hass, device=None, filename=None):
+    async def async_setup(
+        cls,
+        hass,
+        device=None,
+        filename=None,
+        *,
+        require_existing_database=False,
+    ):
         """Initiate becker instance."""
-        cls.becker = await hass.async_add_executor_job(
-            cls._setup_sync, hass, device, filename
+        filename = await hass.async_add_executor_job(
+            cls._resolve_filename_sync,
+            hass,
+            filename,
+            require_existing_database,
         )
+
+        if cls.becker is not None:
+            if cls._device == device and cls._filename == filename:
+                return
+            raise BeckerConnectionError(
+                "A different Becker hub already owns the serial port and database"
+            )
+
+        cls.becker = await hass.async_add_executor_job(cls._setup_sync, hass, device, filename)
         cls._hass = hass
+        cls._device = device
+        cls._filename = filename
         if not cls._shutdown_registered:
-            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, cls._async_shutdown)
+            cls._shutdown_unsub = hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STOP, cls._async_shutdown
+            )
             cls._shutdown_registered = True
 
     @classmethod
-    def _setup_sync(cls, hass, device=None, filename=None):
-        """Resolve files and start the worker outside the event loop."""
-        # Validate filename
+    def _resolve_filename_sync(cls, hass, filename=None, require_existing_database=False):
+        """Resolve the database path without opening or modifying the database."""
         if filename is None:
             filename = SQL_DB_FILE
         if not os.path.isfile(filename):
             file = os.path.basename(filename)
             path = os.path.dirname(filename)
-            if path == '':
+            if path == "":
                 # file in HA config folder
                 if os.path.isfile(os.path.join(hass.config.config_dir, file)):
                     filename = os.path.join(hass.config.config_dir, file)
@@ -69,17 +95,22 @@ class PyBecker:
                     _LOGGER.debug("Move file to %s", filename)
                     os.rename(os.path.join(FILE_PATH, file), filename)
                 else:
-                    # create a new file in HA config folder
-                    _LOGGER.warning("Filename %s does not exist. Create a new file.", file)
                     filename = os.path.join(hass.config.config_dir, file)
+                    if require_existing_database:
+                        raise ValueError(f"Becker sender database {filename} does not exist")
+                    _LOGGER.warning("Filename %s does not exist. Create a new file.", file)
             else:
                 if not os.path.exists(path):
-                    raise ValueError(
-                        f"Path of filename {filename} invalid or does not exist"
-                    )
-                # create a new file
+                    raise ValueError(f"Path of filename {filename} invalid or does not exist")
+                if require_existing_database:
+                    raise ValueError(f"Becker sender database {filename} does not exist")
                 _LOGGER.warning("Filename %s does not exist. Create a new file.", filename)
         _LOGGER.debug("Use filename: %s", filename)
+        return os.path.abspath(filename)
+
+    @classmethod
+    def _setup_sync(cls, hass, device=None, filename=None):
+        """Start the worker outside the event loop."""
 
         def receive_callback(packet):
             cls.worker_callback(hass, packet)
@@ -91,19 +122,36 @@ class PyBecker:
     @classmethod
     async def _async_shutdown(cls, _event):
         """Close the worker cleanly when Home Assistant stops."""
+        cls._shutdown_unsub = None
+        await cls._async_close()
+
+    @classmethod
+    async def async_shutdown(cls):
+        """Close the worker when a config entry is unloaded."""
+        if cls._shutdown_unsub is not None:
+            cls._shutdown_unsub()
+            cls._shutdown_unsub = None
+        await cls._async_close()
+
+    @classmethod
+    async def _async_close(cls):
+        """Close the active worker and reset singleton ownership."""
         if cls.becker is not None:
             becker = cls.becker
             cls.becker = None
             await cls._hass.async_add_executor_job(becker.close)
         cls._shutdown_registered = False
         cls._hass = None
+        cls._device = None
+        cls._filename = None
 
     @classmethod
     async def async_register_services(cls, hass):
         """Register component services."""
-
-        hass.services.async_register(DOMAIN, "pair", cls.handle_pair, PAIR_SCHEMA)
-        hass.services.async_register(DOMAIN, "log_units", cls.handle_log_units)
+        if not hass.services.has_service(DOMAIN, "pair"):
+            hass.services.async_register(DOMAIN, "pair", cls.handle_pair, PAIR_SCHEMA)
+        if not hass.services.has_service(DOMAIN, "log_units"):
+            hass.services.async_register(DOMAIN, "log_units", cls.handle_log_units)
 
     @classmethod
     async def handle_pair(cls, call):
@@ -127,9 +175,7 @@ class PyBecker:
         _LOGGER.info("Configured Becker centronic units:")
         for row in units:
             unit_code, increment = row[0:2]
-            _LOGGER.info(
-                "Unit id %d, unit code %s, increment %d", unit_id, unit_code, increment
-            )
+            _LOGGER.info("Unit id %d, unit code %s, increment %d", unit_id, unit_code, increment)
             unit_id += 1
 
     @classmethod

@@ -16,6 +16,15 @@ from .pybecker.becker import (
 DOMAIN = "becker"
 MANUFACTURER = "Becker"
 
+DEFAULT_DATABASE_PATH = "/config/centronic-stick.db"
+DEFAULT_HUB_TITLE = "Becker Centronic USB"
+
+CONF_ADD_ANOTHER = "add_another"
+CONF_MIGRATION_PENDING = "migration_pending"
+
+DATA_CONFIG_ENTRY_ACTIVE = "config_entry_active"
+DATA_YAML_CONFIG = "yaml_config"
+
 DEVICE = "device"
 DEVICE_CLASS = "shutter"
 
@@ -26,17 +35,17 @@ CONF_CHANNEL = "channel"
 CONF_COVERS = "covers"
 CONF_UNIT = "unit"
 CONF_REMOTE_ID = "remote_id"
-CONF_TRAVELLING_TIME_DOWN = 'travelling_time_down'
-CONF_TRAVELLING_TIME_UP = 'travelling_time_up'
-CONF_INTERMEDIATE_DISABLE = 'intermediate_position_disable'         # deprecated
-CONF_INTERMEDIATE_POSITION = 'intermediate_position'
-CONF_INTERMEDIATE_POSITION_UP = 'intermediate_position_up'
-CONF_INTERMEDIATE_POSITION_DOWN = 'intermediate_position_down'
-CONF_TILT_INTERMEDIATE = 'tilt_intermediate'
-CONF_TILT_BLIND = 'tilt_blind'
-CONF_TILT_TIME_BLIND = 'tilt_time_blind'
+CONF_TRAVELLING_TIME_DOWN = "travelling_time_down"
+CONF_TRAVELLING_TIME_UP = "travelling_time_up"
+CONF_INTERMEDIATE_DISABLE = "intermediate_position_disable"  # deprecated
+CONF_INTERMEDIATE_POSITION = "intermediate_position"
+CONF_INTERMEDIATE_POSITION_UP = "intermediate_position_up"
+CONF_INTERMEDIATE_POSITION_DOWN = "intermediate_position_down"
+CONF_TILT_INTERMEDIATE = "tilt_intermediate"
+CONF_TILT_BLIND = "tilt_blind"
+CONF_TILT_TIME_BLIND = "tilt_time_blind"
 
-TILT_FUNCTIONALITY = 'tilt_functionality'
+TILT_FUNCTIONALITY = "tilt_functionality"
 
 CLOSED_POSITION = 0
 VENTILATION_POSITION = 25
@@ -46,16 +55,16 @@ TILT_TIME = 0.3
 TILT_RECEIVE_TIMEOUT = 1.0
 
 COMMANDS = {
-    'halt': f'{COMMAND_HALT:02x}'.encode(),
-    'up': f'{COMMAND_UP:02x}'.encode(),
-    'up_intermediate': f'{COMMAND_UP5:02x}'.encode(),
-    'down': f'{COMMAND_DOWN:02x}'.encode(),
-    'down_intermediate': f'{COMMAND_DOWN5:02x}'.encode(),
-    'release': f'{COMMAND_RELEASE:02x}'.encode(),
+    "halt": f"{COMMAND_HALT:02x}".encode(),
+    "up": f"{COMMAND_UP:02x}".encode(),
+    "up_intermediate": f"{COMMAND_UP5:02x}".encode(),
+    "down": f"{COMMAND_DOWN:02x}".encode(),
+    "down_intermediate": f"{COMMAND_DOWN5:02x}".encode(),
+    "release": f"{COMMAND_RELEASE:02x}".encode(),
 }
 
-REMOTE_ID = re.compile(r'(?P<id>[0-9A-F]{5,5}):(?P<ch>[0-9A-F]{1,1})')
+REMOTE_ID = re.compile(r"(?P<id>[0-9A-F]{5,5}):(?P<ch>[0-9A-F]{1,1})")
 
-TEMPLATE_VALID_OPEN = [STATE_OPEN, 'true', True]
-TEMPLATE_VALID_CLOSE = [STATE_CLOSED, 'false', False]
-TEMPLATE_UNKNOWN_STATES = ['unknown', 'unavailable', 'none', None]
+TEMPLATE_VALID_OPEN = [STATE_OPEN, "true", True]
+TEMPLATE_VALID_CLOSE = [STATE_CLOSED, "false", False]
+TEMPLATE_UNKNOWN_STATES = ["unknown", "unavailable", "none", None]
