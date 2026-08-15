@@ -24,6 +24,7 @@
         "data": {
           "friendly_name": "Name",
           "channel": "Sender und Kanal",
+          "cover_type": "Behangtyp",
           "intermediate_position": "Angelernte Zwischenposition aktivieren",
           "add_another": "Weiteres Element hinzufügen"
         }
@@ -76,15 +77,14 @@
         "description": "Kanal {channel} bleibt unverändert. Sobald mindestens eine Fahrzeit eingetragen ist, werden Positionsverfolgung und Positionsregler aktiviert.",
         "data": {
           "friendly_name": "Name",
+          "cover_type": "Behangtyp",
           "travelling_time_up": "Gesamte Fahrzeit aufwärts",
           "travelling_time_down": "Gesamte Fahrzeit abwärts",
           "value_template": "Template für die Position",
           "remote_id": "IDs physischer Fernbedienungen",
           "intermediate_position": "Angelernte Zwischenpositionen aktivieren",
           "intermediate_position_up": "Angezeigte Position nach Zwischenposition AUF",
-          "intermediate_position_down": "Angezeigte Position nach Zwischenposition AB",
-          "tilt_mode": "Lamellen-/Zwischenpositionssteuerung",
-          "tilt_time_blind": "Kurze Impulsdauer für Lamellen"
+          "intermediate_position_down": "Angezeigte Position nach Zwischenposition AB"
         },
         "data_description": {
           "travelling_time_up": "Sekunden von ganz geschlossen bis ganz offen. Wird nur eine Richtung angegeben, gilt sie für beide.",
@@ -92,7 +92,17 @@
           "value_template": "Optionales Experten-Template mit Ergebnis 0–100, offen/geschlossen, wahr/falsch oder einem unbekannten Wert.",
           "remote_id": "Optional, zum Beispiel 12345:2. Mehrere IDs durch Kommas trennen.",
           "intermediate_position_up": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AUF.",
-          "intermediate_position_down": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AB.",
+          "intermediate_position_down": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AB."
+        }
+      },
+      "blind_options": {
+        "title": "Lamellen für {name} konfigurieren",
+        "description": "Diese Bedienelemente werden nur bei Lamellenjalousien auf Kanal {channel} angeboten.",
+        "data": {
+          "tilt_mode": "Lamellensteuerung",
+          "tilt_time_blind": "Kurze Impulsdauer für Lamellen"
+        },
+        "data_description": {
           "tilt_mode": "„Zwischenposition“ legt die Lamellentasten auf die angelernten Ziele; „Jalousie“ sendet einen kurzen AUF-/AB-Impuls.",
           "tilt_time_blind": "Wird nur im Modus „Jalousie“ verwendet."
         }
@@ -110,6 +120,12 @@
     }
   },
   "selector": {
+    "cover_type": {
+      "options": {
+        "shutter": "Rollladen",
+        "blind": "Lamellenjalousie"
+      }
+    },
     "tilt_mode": {
       "options": {
         "none": "Deaktiviert",

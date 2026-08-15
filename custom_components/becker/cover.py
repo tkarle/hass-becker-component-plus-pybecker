@@ -9,6 +9,7 @@ from homeassistant.components.cover import (
     ATTR_CURRENT_POSITION,
     ATTR_POSITION,
     PLATFORM_SCHEMA,
+    CoverDeviceClass,
     CoverEntity,
     CoverEntityFeature,
 )
@@ -35,6 +36,7 @@ from .const import (
     CLOSED_POSITION,
     COMMANDS,
     CONF_CHANNEL,
+    CONF_COVER_TYPE,
     CONF_INTERMEDIATE_DISABLE,
     CONF_INTERMEDIATE_POSITION,
     CONF_INTERMEDIATE_POSITION_DOWN,
@@ -45,8 +47,9 @@ from .const import (
     CONF_TILT_TIME_BLIND,
     CONF_TRAVELLING_TIME_DOWN,
     CONF_TRAVELLING_TIME_UP,
+    COVER_TYPE_BLIND,
+    COVER_TYPE_SHUTTER,
     DATA_YAML_CONFIG,
-    DEVICE_CLASS,
     DOMAIN,
     INTERMEDIATE_POSITION,
     MANUFACTURER,
@@ -72,6 +75,9 @@ COVER_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_FRIENDLY_NAME): cv.string,
         vol.Required(CONF_CHANNEL): cv.string,
+        vol.Optional(CONF_COVER_TYPE): vol.In(
+            [COVER_TYPE_SHUTTER, COVER_TYPE_BLIND]
+        ),
         vol.Optional(CONF_VALUE_TEMPLATE): cv.template,
         vol.Optional(CONF_REMOTE_ID): cv.string,
         vol.Optional(CONF_TRAVELLING_TIME_DOWN): cv.positive_float,
@@ -141,6 +147,7 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
         device_config = COVER_SCHEMA(device_config)
         friendly_name = device_config.get(CONF_FRIENDLY_NAME, device)
         channel = device_config.get(CONF_CHANNEL)
+        cover_type = device_config.get(CONF_COVER_TYPE)
         state_template = device_config.get(CONF_VALUE_TEMPLATE)
         remote_id = device_config.get(CONF_REMOTE_ID)
         travel_time_down = device_config.get(CONF_TRAVELLING_TIME_DOWN)
@@ -198,6 +205,16 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
             )
             tilt_intermediate = False
         tilt_time_blind = device_config.get(CONF_TILT_TIME_BLIND)
+        if cover_type is None:
+            # Preserve legacy behavior until a type is explicitly selected.
+            cover_type = (
+                COVER_TYPE_BLIND
+                if tilt_intermediate or tilt_blind
+                else COVER_TYPE_SHUTTER
+            )
+        elif cover_type == COVER_TYPE_SHUTTER:
+            tilt_intermediate = False
+            tilt_blind = False
 
         if channel is None:
             _LOGGER.error("Must specify %s", CONF_CHANNEL)
@@ -210,6 +227,7 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
                 PyBecker.becker,
                 friendly_name,
                 channel,
+                cover_type,
                 state_template,
                 remote_id,
                 travel_time_down,
@@ -235,6 +253,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         becker,
         name,
         channel,
+        cover_type,
         state_template,
         remote_id,
         travel_time_down,
@@ -253,11 +272,19 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._name = name
         self._attr = dict()
         self._channel = channel
+        self._cover_type = cover_type
+        if cover_type == COVER_TYPE_SHUTTER:
+            tilt_intermediate = False
+            tilt_blind = False
         if create_devices:
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"cover-{channel}")},
                 manufacturer=MANUFACTURER,
-                model="Centronic cover",
+                model=(
+                    "Centronic venetian blind"
+                    if cover_type == COVER_TYPE_BLIND
+                    else "Centronic roller shutter"
+                ),
                 name=name,
             )
         self._attr[CONF_CHANNEL] = str(channel)
@@ -358,8 +385,10 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     @property
     def device_class(self):
-        """Return the class of this device, from component DEVICE_CLASSES."""
-        return DEVICE_CLASS
+        """Return the native Home Assistant class for this cover type."""
+        if self._cover_type == COVER_TYPE_BLIND:
+            return CoverDeviceClass.BLIND
+        return CoverDeviceClass.SHUTTER
 
     @property
     def supported_features(self):

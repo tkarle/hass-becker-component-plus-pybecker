@@ -24,6 +24,7 @@
         "data": {
           "friendly_name": "Name",
           "channel": "Sender unit and channel",
+          "cover_type": "Cover type",
           "intermediate_position": "Enable programmed intermediate position",
           "add_another": "Add another cover"
         }
@@ -76,15 +77,14 @@
         "description": "Channel {channel} remains unchanged. Supplying at least one travel time enables position tracking and the position slider.",
         "data": {
           "friendly_name": "Name",
+          "cover_type": "Cover type",
           "travelling_time_up": "Full travel time up",
           "travelling_time_down": "Full travel time down",
           "value_template": "Position value template",
           "remote_id": "Physical remote IDs",
           "intermediate_position": "Enable programmed intermediate positions",
           "intermediate_position_up": "Tracked position after intermediate UP",
-          "intermediate_position_down": "Tracked position after intermediate DOWN",
-          "tilt_mode": "Tilt controls",
-          "tilt_time_blind": "Short pulse duration for blind tilt"
+          "intermediate_position_down": "Tracked position after intermediate DOWN"
         },
         "data_description": {
           "travelling_time_up": "Seconds from fully closed to fully open. If only one direction is entered, it is used for both.",
@@ -92,7 +92,17 @@
           "value_template": "Optional advanced template returning 0–100, open/closed, true/false, or an unknown value.",
           "remote_id": "Optional IDs such as 12345:2. Separate multiple IDs with commas.",
           "intermediate_position_up": "Home Assistant position in percent for the programmed UP double-press target.",
-          "intermediate_position_down": "Home Assistant position in percent for the programmed DOWN double-press target.",
+          "intermediate_position_down": "Home Assistant position in percent for the programmed DOWN double-press target."
+        }
+      },
+      "blind_options": {
+        "title": "Configure slats for {name}",
+        "description": "These controls are only exposed for venetian blinds on channel {channel}.",
+        "data": {
+          "tilt_mode": "Slat controls",
+          "tilt_time_blind": "Short pulse duration for slats"
+        },
+        "data_description": {
           "tilt_mode": "Intermediate maps tilt buttons to programmed intermediate targets. Blind sends a short UP/DOWN pulse.",
           "tilt_time_blind": "Used only in Blind mode."
         }
@@ -110,6 +120,12 @@
     }
   },
   "selector": {
+    "cover_type": {
+      "options": {
+        "shutter": "Roller shutter",
+        "blind": "Venetian blind with slats"
+      }
+    },
     "tilt_mode": {
       "options": {
         "none": "Disabled",

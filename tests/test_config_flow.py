@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from homeassistant.components.cover import CoverEntityFeature
+from homeassistant.components.cover import CoverDeviceClass, CoverEntityFeature
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.const import (
     CONF_COVERS,
@@ -30,6 +30,7 @@ from custom_components.becker.config_flow import (
 )
 from custom_components.becker.const import (
     CONF_CHANNEL,
+    CONF_COVER_TYPE,
     CONF_INTERMEDIATE_POSITION,
     CONF_INTERMEDIATE_POSITION_DOWN,
     CONF_INTERMEDIATE_POSITION_UP,
@@ -41,6 +42,8 @@ from custom_components.becker.const import (
     CONF_TILT_TIME_BLIND,
     CONF_TRAVELLING_TIME_DOWN,
     CONF_TRAVELLING_TIME_UP,
+    COVER_TYPE_BLIND,
+    COVER_TYPE_SHUTTER,
     DATA_YAML_CONFIG,
     DOMAIN,
     TILT_MODE_BLIND,
@@ -141,6 +144,7 @@ def test_update_cover_options_preserves_channel_and_normalizes_modes() -> None:
         },
         {
             CONF_FRIENDLY_NAME: "Wohnzimmer rechts",
+            CONF_COVER_TYPE: COVER_TYPE_BLIND,
             CONF_TRAVELLING_TIME_UP: 31.5,
             CONF_TRAVELLING_TIME_DOWN: 27,
             CONF_REMOTE_ID: "abcde:2, 12345:f",
@@ -163,6 +167,7 @@ def test_update_cover_options_rejects_unsafe_combinations() -> None:
     """The UI rejects malformed remotes and impossible intermediate tilt settings."""
     base = {
         CONF_FRIENDLY_NAME: "Test",
+        CONF_COVER_TYPE: COVER_TYPE_BLIND,
         CONF_INTERMEDIATE_POSITION: False,
         CONF_INTERMEDIATE_POSITION_UP: 25,
         CONF_INTERMEDIATE_POSITION_DOWN: 75,
@@ -185,6 +190,7 @@ def test_config_entry_cover_has_device_info_and_combined_position_tracking() -> 
         object(),
         "Wohnzimmer rechts",
         "2:4",
+        COVER_TYPE_BLIND,
         object(),
         None,
         27,
@@ -200,7 +206,52 @@ def test_config_entry_cover_has_device_info_and_combined_position_tracking() -> 
 
     assert entity.device_info["identifiers"] == {(DOMAIN, "cover-2:4")}
     assert "via_device" not in entity.device_info
+    assert entity.device_class is CoverDeviceClass.BLIND
+    assert entity.supported_features & CoverEntityFeature.OPEN_TILT
     assert entity.supported_features & CoverEntityFeature.SET_POSITION
+
+
+def test_shutter_type_never_exposes_tilt_controls() -> None:
+    """Roller shutters hide all slat controls even with stale legacy flags."""
+    stored = update_cover_options(
+        {
+            CONF_CHANNEL: "2:1",
+            CONF_TILT_INTERMEDIATE: True,
+            CONF_TILT_BLIND: True,
+        },
+        {
+            CONF_FRIENDLY_NAME: "Küche",
+            CONF_COVER_TYPE: COVER_TYPE_SHUTTER,
+            CONF_INTERMEDIATE_POSITION: True,
+            CONF_INTERMEDIATE_POSITION_UP: 25,
+            CONF_INTERMEDIATE_POSITION_DOWN: 75,
+        },
+    )
+    assert stored[CONF_COVER_TYPE] == COVER_TYPE_SHUTTER
+    assert stored[CONF_TILT_INTERMEDIATE] is False
+    assert stored[CONF_TILT_BLIND] is False
+
+    entity = BeckerEntity(
+        object(),
+        "Küche",
+        "2:1",
+        COVER_TYPE_SHUTTER,
+        None,
+        None,
+        20,
+        20,
+        25,
+        75,
+        True,
+        True,
+        True,
+        0.3,
+        create_devices=True,
+    )
+
+    assert entity.device_class is CoverDeviceClass.SHUTTER
+    assert not entity.supported_features & CoverEntityFeature.OPEN_TILT
+    assert not entity.supported_features & CoverEntityFeature.CLOSE_TILT
 
 
 def test_yaml_import_creates_a_passive_lossless_entry(tmp_path: Path) -> None:

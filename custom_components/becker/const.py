@@ -21,6 +21,7 @@ DEFAULT_HUB_TITLE = "Becker Centronic USB"
 HUB_UNIQUE_ID = "becker-centronic-usb"
 
 CONF_ADD_ANOTHER = "add_another"
+CONF_COVER_TYPE = "cover_type"
 CONF_MIGRATION_PENDING = "migration_pending"
 CONF_SELECTED_COVER = "selected_cover"
 CONF_TILT_MODE = "tilt_mode"
@@ -29,12 +30,13 @@ TILT_MODE_NONE = "none"
 TILT_MODE_INTERMEDIATE = "intermediate"
 TILT_MODE_BLIND = "blind"
 
+COVER_TYPE_SHUTTER = "shutter"
+COVER_TYPE_BLIND = "blind"
+
 DATA_CONFIG_ENTRY_ACTIVE = "config_entry_active"
 DATA_YAML_CONFIG = "yaml_config"
 
 DEVICE = "device"
-DEVICE_CLASS = "shutter"
-
 RECEIVE_MESSAGE = "receive_message"
 REMOTE_PACKET_EVENT = "remote_packet_received"
 

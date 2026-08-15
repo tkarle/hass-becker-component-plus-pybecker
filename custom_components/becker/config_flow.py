@@ -41,6 +41,7 @@ from homeassistant.util import slugify
 from .const import (
     CONF_ADD_ANOTHER,
     CONF_CHANNEL,
+    CONF_COVER_TYPE,
     CONF_INTERMEDIATE_POSITION,
     CONF_INTERMEDIATE_POSITION_DOWN,
     CONF_INTERMEDIATE_POSITION_UP,
@@ -53,6 +54,8 @@ from .const import (
     CONF_TILT_TIME_BLIND,
     CONF_TRAVELLING_TIME_DOWN,
     CONF_TRAVELLING_TIME_UP,
+    COVER_TYPE_BLIND,
+    COVER_TYPE_SHUTTER,
     DATA_YAML_CONFIG,
     DEFAULT_DATABASE_PATH,
     DEFAULT_HUB_TITLE,
@@ -174,6 +177,15 @@ def _current_tilt_mode(cover: dict[str, Any]) -> str:
     return TILT_MODE_NONE
 
 
+def _current_cover_type(cover: dict[str, Any]) -> str:
+    """Return an explicit type or preserve the legacy tilt-based behavior."""
+    if CONF_COVER_TYPE in cover:
+        return str(cover[CONF_COVER_TYPE])
+    if _current_tilt_mode(cover) != TILT_MODE_NONE:
+        return COVER_TYPE_BLIND
+    return COVER_TYPE_SHUTTER
+
+
 def _normalize_remote_ids(value: str) -> str:
     """Validate and normalize a comma/space separated list of Becker remote IDs."""
     identifiers = [item.upper() for item in re.split(r"[\s,;]+", value.strip()) if item]
@@ -189,13 +201,20 @@ def update_cover_options(cover: dict[str, Any], user_input: dict[str, Any]) -> d
     if not name:
         raise ValueError("Friendly name must not be empty")
     updated[CONF_FRIENDLY_NAME] = name
+    cover_type = str(user_input[CONF_COVER_TYPE])
+    if cover_type not in (COVER_TYPE_SHUTTER, COVER_TYPE_BLIND):
+        raise ValueError("Invalid cover type")
+    updated[CONF_COVER_TYPE] = cover_type
     for key in (
         CONF_INTERMEDIATE_POSITION,
         CONF_INTERMEDIATE_POSITION_UP,
         CONF_INTERMEDIATE_POSITION_DOWN,
-        CONF_TILT_TIME_BLIND,
     ):
         updated[key] = user_input[key]
+    updated[CONF_TILT_TIME_BLIND] = user_input.get(
+        CONF_TILT_TIME_BLIND,
+        cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
+    )
 
     for key in (
         CONF_TRAVELLING_TIME_UP,
@@ -219,7 +238,9 @@ def update_cover_options(cover: dict[str, Any], user_input: dict[str, Any]) -> d
     else:
         updated.pop(CONF_REMOTE_ID, None)
 
-    tilt_mode = user_input[CONF_TILT_MODE]
+    tilt_mode = user_input.get(CONF_TILT_MODE, TILT_MODE_NONE)
+    if cover_type == COVER_TYPE_SHUTTER:
+        tilt_mode = TILT_MODE_NONE
     if tilt_mode == TILT_MODE_INTERMEDIATE and not updated[CONF_INTERMEDIATE_POSITION]:
         raise ValueError("Tilt intermediate requires an intermediate position")
     updated[CONF_TILT_INTERMEDIATE] = tilt_mode == TILT_MODE_INTERMEDIATE
@@ -362,6 +383,7 @@ class BeckerConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._covers[object_id] = {
                     CONF_FRIENDLY_NAME: name,
                     CONF_CHANNEL: channel,
+                    CONF_COVER_TYPE: user_input[CONF_COVER_TYPE],
                     CONF_INTERMEDIATE_POSITION: user_input[CONF_INTERMEDIATE_POSITION],
                 }
                 if user_input[CONF_ADD_ANOTHER]:
@@ -393,6 +415,15 @@ class BeckerConfigFlow(ConfigFlow, domain=DOMAIN):
                         mode=SelectSelectorMode.DROPDOWN,
                     )
                 ),
+                vol.Required(
+                    CONF_COVER_TYPE, default=COVER_TYPE_SHUTTER
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[COVER_TYPE_SHUTTER, COVER_TYPE_BLIND],
+                        translation_key="cover_type",
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
                 vol.Required(CONF_INTERMEDIATE_POSITION, default=True): BooleanSelector(),
                 vol.Required(CONF_ADD_ANOTHER, default=False): BooleanSelector(),
             }
@@ -410,6 +441,7 @@ class BeckerOptionsFlow(OptionsFlow):
 
     def __init__(self) -> None:
         self._selected_cover: str | None = None
+        self._pending_cover_input: dict[str, Any] | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Choose the correct options form for the entry state."""
@@ -537,23 +569,50 @@ class BeckerOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            try:
-                covers[self._selected_cover] = update_cover_options(cover, user_input)
-            except (ValueError, vol.Invalid) as err:
-                if "requires an intermediate" in str(err):
-                    errors[CONF_TILT_MODE] = "tilt_requires_intermediate"
-                elif "remote ID" in str(err):
-                    errors[CONF_REMOTE_ID] = "invalid_remote_id"
+            if user_input[CONF_COVER_TYPE] == COVER_TYPE_BLIND:
+                preliminary = {
+                    **user_input,
+                    CONF_TILT_MODE: TILT_MODE_NONE,
+                    CONF_TILT_TIME_BLIND: cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
+                }
+                try:
+                    update_cover_options(cover, preliminary)
+                except (ValueError, vol.Invalid) as err:
+                    if "remote ID" in str(err):
+                        errors[CONF_REMOTE_ID] = "invalid_remote_id"
+                    else:
+                        errors["base"] = "invalid_cover_config"
                 else:
-                    errors["base"] = "invalid_cover_config"
+                    self._pending_cover_input = dict(user_input)
+                    return await self.async_step_blind_options()
             else:
-                options = dict(self.config_entry.options)
-                options[CONF_COVERS] = covers
-                return self.async_create_entry(data=options)
+                user_input = {
+                    **user_input,
+                    CONF_TILT_MODE: TILT_MODE_NONE,
+                    CONF_TILT_TIME_BLIND: cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
+                }
+                try:
+                    covers[self._selected_cover] = update_cover_options(cover, user_input)
+                except (ValueError, vol.Invalid) as err:
+                    if "remote ID" in str(err):
+                        errors[CONF_REMOTE_ID] = "invalid_remote_id"
+                    else:
+                        errors["base"] = "invalid_cover_config"
+                else:
+                    options = dict(self.config_entry.options)
+                    options[CONF_COVERS] = covers
+                    return self.async_create_entry(data=options)
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_FRIENDLY_NAME): TextSelector(),
+                vol.Required(CONF_COVER_TYPE): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[COVER_TYPE_SHUTTER, COVER_TYPE_BLIND],
+                        translation_key="cover_type",
+                        mode=SelectSelectorMode.DROPDOWN,
+                    )
+                ),
                 vol.Optional(CONF_TRAVELLING_TIME_UP): NumberSelector(
                     NumberSelectorConfig(
                         min=0.1,
@@ -595,6 +654,70 @@ class BeckerOptionsFlow(OptionsFlow):
                         mode=NumberSelectorMode.BOX,
                     )
                 ),
+            }
+        )
+        suggested = {
+            CONF_FRIENDLY_NAME: cover.get(CONF_FRIENDLY_NAME, self._selected_cover),
+            CONF_COVER_TYPE: _current_cover_type(cover),
+            CONF_INTERMEDIATE_POSITION: cover.get(CONF_INTERMEDIATE_POSITION, True),
+            CONF_INTERMEDIATE_POSITION_UP: cover.get(
+                CONF_INTERMEDIATE_POSITION_UP, VENTILATION_POSITION
+            ),
+            CONF_INTERMEDIATE_POSITION_DOWN: cover.get(
+                CONF_INTERMEDIATE_POSITION_DOWN, INTERMEDIATE_POSITION
+            ),
+        }
+        for key in (
+            CONF_TRAVELLING_TIME_UP,
+            CONF_TRAVELLING_TIME_DOWN,
+            CONF_VALUE_TEMPLATE,
+            CONF_REMOTE_ID,
+        ):
+            if key in cover:
+                suggested[key] = cover[key]
+
+        return self.async_show_form(
+            step_id="cover_options",
+            data_schema=self.add_suggested_values_to_schema(
+                schema,
+                user_input or suggested,
+            ),
+            errors=errors,
+            description_placeholders={
+                "name": str(cover.get(CONF_FRIENDLY_NAME, self._selected_cover)),
+                "channel": str(cover[CONF_CHANNEL]),
+            },
+        )
+
+    async def async_step_blind_options(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit options that only apply to a venetian blind."""
+        if self._selected_cover is None or self._pending_cover_input is None:
+            return await self.async_step_select_cover()
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        covers = {key: dict(value) for key, value in current[CONF_COVERS].items()}
+        cover = covers[self._selected_cover]
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            combined = {**self._pending_cover_input, **user_input}
+            try:
+                covers[self._selected_cover] = update_cover_options(cover, combined)
+            except (ValueError, vol.Invalid) as err:
+                if "requires an intermediate" in str(err):
+                    errors[CONF_TILT_MODE] = "tilt_requires_intermediate"
+                else:
+                    errors["base"] = "invalid_cover_config"
+            else:
+                self._pending_cover_input = None
+                options = dict(self.config_entry.options)
+                options[CONF_COVERS] = covers
+                return self.async_create_entry(data=options)
+
+        schema = vol.Schema(
+            {
                 vol.Required(CONF_TILT_MODE): SelectSelector(
                     SelectSelectorConfig(
                         options=[
@@ -618,28 +741,11 @@ class BeckerOptionsFlow(OptionsFlow):
             }
         )
         suggested = {
-            CONF_FRIENDLY_NAME: cover.get(CONF_FRIENDLY_NAME, self._selected_cover),
-            CONF_INTERMEDIATE_POSITION: cover.get(CONF_INTERMEDIATE_POSITION, True),
-            CONF_INTERMEDIATE_POSITION_UP: cover.get(
-                CONF_INTERMEDIATE_POSITION_UP, VENTILATION_POSITION
-            ),
-            CONF_INTERMEDIATE_POSITION_DOWN: cover.get(
-                CONF_INTERMEDIATE_POSITION_DOWN, INTERMEDIATE_POSITION
-            ),
             CONF_TILT_MODE: _current_tilt_mode(cover),
             CONF_TILT_TIME_BLIND: cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
         }
-        for key in (
-            CONF_TRAVELLING_TIME_UP,
-            CONF_TRAVELLING_TIME_DOWN,
-            CONF_VALUE_TEMPLATE,
-            CONF_REMOTE_ID,
-        ):
-            if key in cover:
-                suggested[key] = cover[key]
-
         return self.async_show_form(
-            step_id="cover_options",
+            step_id="blind_options",
             data_schema=self.add_suggested_values_to_schema(
                 schema,
                 user_input or suggested,

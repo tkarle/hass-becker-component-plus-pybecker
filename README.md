@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.4` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.5` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -64,6 +64,19 @@ cover** to edit its name, travel times, optional position template, physical
 remote IDs, intermediate positions and tilt behavior. Providing at least one
 travel time enables position tracking and the position slider; a value template
 can additionally correct the tracked position.
+
+Select a native cover type for every device:
+
+- **Roller shutter** uses Home Assistant's shutter device class and never
+  exposes slat controls. Programmed intermediate/ventilation positions remain
+  optional.
+- **Venetian blind with slats** uses Home Assistant's blind device class and
+  opens a separate slat configuration step. Slats can use programmed
+  intermediate commands or short UP/DOWN pulses.
+
+Existing entries keep their legacy behavior until a type is explicitly saved.
+Changing a type never changes the RF channel, entity unique ID, or rolling
+counter database.
 
 The YAML format below remains available for compatibility and advanced options.
 
