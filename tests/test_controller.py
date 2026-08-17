@@ -5,7 +5,14 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from pybecker.becker import Becker, BeckerCommandError
+from pybecker.becker import (
+    COMMAND_PAIR2,
+    COMMAND_RELEASE,
+    PAIRING_DELAY,
+    Becker,
+    BeckerCommandError,
+    _BeckerWorker,
+)
 from pybecker.becker_helper import BeckerConnectionError
 from pybecker.database import Database
 
@@ -15,7 +22,16 @@ def _unit_increment(filename, unit=2) -> int:
         return database.get_unit(unit).increment
 
 
-def test_train_is_one_frame_and_concurrent_commands_are_serialized(tmp_path) -> None:
+def test_train_command_sequence_matches_proven_legacy_protocol() -> None:
+    assert _BeckerWorker._command_codes("TRAIN") == (
+        COMMAND_PAIR2,
+        COMMAND_RELEASE,
+        COMMAND_PAIR2,
+    )
+    assert PAIRING_DELAY == 0.1
+
+
+def test_train_uses_legacy_three_frame_sequence_and_serializes_commands(tmp_path) -> None:
     filename = tmp_path / "centronic-stick.db"
 
     async def exercise() -> None:
@@ -27,8 +43,8 @@ def test_train_is_one_frame_and_concurrent_commands_are_serialized(tmp_path) -> 
             controller.close()
 
     asyncio.run(exercise())
-    # One TRAIN counter and twelve unique UP counters were reserved.
-    assert _unit_increment(filename) == 13
+    # Three TRAIN counters and twelve unique UP counters were reserved.
+    assert _unit_increment(filename) == 15
 
 
 def test_unknown_commands_and_channels_are_rejected(tmp_path) -> None:
@@ -66,5 +82,5 @@ def test_ambiguous_write_failure_consumes_counter(tmp_path) -> None:
             controller.close()
 
     asyncio.run(exercise())
-    # TRAIN used counter 0. The failed UP reserved counter 1 and must not reuse it.
-    assert _unit_increment(filename) == 2
+    # TRAIN used counters 0-2. The failed UP reserved counter 3 and must not reuse it.
+    assert _unit_increment(filename) == 4

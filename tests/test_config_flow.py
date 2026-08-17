@@ -211,6 +211,36 @@ def test_config_entry_cover_has_device_info_and_combined_position_tracking() -> 
     assert entity.supported_features & CoverEntityFeature.SET_POSITION
 
 
+def test_multiple_remotes_groups_and_central_commands_are_tracked() -> None:
+    """Every configured remote channel also accepts that remote's central channel."""
+    entity = BeckerEntity(
+        object(),
+        "Wohnzimmer links",
+        "2:3",
+        COVER_TYPE_BLIND,
+        None,
+        "6ED33:3, 6ED33:5, 09FC3:3, 09FC3:5",
+        60,
+        63.5,
+        25,
+        75,
+        True,
+        False,
+        False,
+        0.3,
+        create_devices=True,
+    )
+
+    assert entity._remode_ids == {
+        b"6ED333",
+        b"6ED335",
+        b"6ED33F",
+        b"09FC33",
+        b"09FC35",
+        b"09FC3F",
+    }
+
+
 def test_shutter_type_never_exposes_tilt_controls() -> None:
     """Roller shutters hide all slat controls even with stale legacy flags."""
     stored = update_cover_options(

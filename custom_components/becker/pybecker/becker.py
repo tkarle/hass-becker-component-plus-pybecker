@@ -27,9 +27,10 @@ COMMAND_UP5 = 0x24
 COMMAND_DOWN = 0x40
 COMMAND_DOWN5 = 0x44
 COMMAND_HALT = 0x10
-COMMAND_PAIR2 = 0x81  # single TRAIN telegram; never used for travel commands
+COMMAND_PAIR2 = 0x81
 
 COMMUNICATION_DELAY = 0.3
+PAIRING_DELAY = 0.1
 RECONNECT_DELAY = 2.0
 QUEUE_SIZE = 100
 CHANNEL_PATTERN = re.compile(r"(?:(?P<unit>[1-5]):)?(?P<channel>[1-7]|15)\Z")
@@ -177,7 +178,8 @@ class _BeckerWorker(threading.Thread):
                 raise
             PacketParser.log(packet, "Sent packet: ")
             if index + 1 < len(packets):
-                time.sleep(COMMUNICATION_DELAY)
+                delay = PAIRING_DELAY if command == "TRAIN" else COMMUNICATION_DELAY
+                time.sleep(delay)
 
     @staticmethod
     def _command_codes(command: str) -> tuple[int, ...]:
@@ -188,10 +190,10 @@ class _BeckerWorker(threading.Thread):
             "RELEASE": (COMMAND_RELEASE,),
             "DOWN": (COMMAND_DOWN,),
             "DOWN2": (COMMAND_DOWN5,),
-            # The user's Becker receivers reliably learn from exactly one long
-            # programming-button telegram. Multi-frame legacy TRAIN sequences can
-            # advance the rolling counter beyond the receiver and are not used.
-            "TRAIN": (COMMAND_PAIR2,),
+            # Reproduce the proven legacy programming-button sequence. A single
+            # PAIR2 only causes the first acknowledgement on these receivers; the
+            # release and second PAIR2 produce the final double acknowledgement.
+            "TRAIN": (COMMAND_PAIR2, COMMAND_RELEASE, COMMAND_PAIR2),
         }
         try:
             return commands[command]
@@ -286,7 +288,7 @@ class Becker:
         await self.send(channel, "HALT")
 
     async def pair(self, channel: str) -> None:
-        """Send exactly one TRAIN telegram for the selected unit/channel."""
+        """Send the complete legacy TRAIN sequence for the selected receiver."""
         await self.send(channel, "TRAIN")
 
     async def list_units(self) -> list[list[str | int]]:

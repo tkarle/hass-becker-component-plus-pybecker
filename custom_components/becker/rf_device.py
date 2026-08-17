@@ -1,6 +1,5 @@
 """Handle the Becker USB device."""
 
-import codecs
 import logging
 import os
 
@@ -30,6 +29,38 @@ PAIR_SCHEMA = vol.Schema(
         vol.Optional(CONF_UNIT): vol.All(int, vol.Range(min=1, max=5)),
     }
 )
+
+
+def remote_packet_event_data(packet):
+    """Build backward-compatible event data for a received remote packet."""
+    unit = packet.group("unit_id").decode("ascii").upper()
+    channel = packet.group("channel").decode("ascii").upper()
+    command_nibble = packet.group("command").upper()
+    argument = packet.group("argument").decode("ascii").upper()
+    command_code = (command_nibble + packet.group("argument")).decode("ascii").upper()
+
+    data = {
+        "unit": unit,
+        "channel": channel,
+        "argument": argument,
+        "command_code": command_code,
+    }
+
+    # Keep the historic broad command (for example "up" for both 20 and 24)
+    # so existing event automations continue to work.
+    broad_code = command_nibble.lower() + b"0"
+    broad_name = next((name for name, code in COMMANDS.items() if code == broad_code), None)
+    if broad_name is not None:
+        data["command"] = broad_name
+
+    # The action exposes the complete command byte and therefore distinguishes
+    # normal travel commands from intermediate/double-tap variants.
+    exact_code = command_code.lower().encode("ascii")
+    action_name = next((name for name, code in COMMANDS.items() if code == exact_code), None)
+    if action_name is not None:
+        data["action"] = action_name
+
+    return data
 
 
 class PyBecker:
@@ -192,12 +223,5 @@ class PyBecker:
 
         # Also fire an explicit event that external applications can listen to
         # if that is of use to them.
-        data = {
-            "unit": codecs.decode(packet.group("unit_id"), "ascii"),
-            "channel": codecs.decode(packet.group("channel"), "ascii"),
-        }
-        command = packet.group("command") + b"0"
-        command_name = [nm for nm, cmd in COMMANDS.items() if cmd == command]
-        if command_name:
-            data["command"] = command_name[0]
+        data = remote_packet_event_data(packet)
         hass.bus.async_fire(f"{DOMAIN}_{REMOTE_PACKET_EVENT}", data)

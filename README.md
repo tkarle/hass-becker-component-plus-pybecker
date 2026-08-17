@@ -282,9 +282,15 @@ You have to put your shutter in pairing mode before. This is done by pressing th
 program button of your master remote until you hear a "clac" noise
 
 To pair your shutter run the action `becker.pair` once (see HA Developer Tools -> Actions).
-This beta sends exactly one TRAIN telegram. TRAIN is reserved for pairing and is
-never used for normal travel commands.
-The shutter will confirm the successful pair with a single "clac" noise followed by a double "clac" noise.
+The action sends the proven legacy programming sequence `PAIR2`, `RELEASE`,
+`PAIR2`, with a short delay between its three telegrams. All three rolling
+counters are reserved durably before transmission. TRAIN is reserved for
+pairing and is never used for normal travel commands.
+
+The shutter first acknowledges programming mode once and then confirms a
+successful pair with a double "clac" or nod. Do not test travel commands unless
+that final double acknowledgement occurred. If it is missing, put the intended
+receiver into programming mode again before retrying the action.
 
 Example data for service becker.pair:
 
@@ -303,8 +309,11 @@ integration also fires explicit events of type
 Those events can be used to trigger automations when remote buttons are pressed
 or for other custom purposes.
 
-Each event contains data about the remote unit, channel and the command
-that has been received, for instance:
+Each event contains the remote unit, channel, broad command, exact action,
+argument nibble and complete command byte. The broad `command` remains
+backward compatible: both `20` and the intermediate/double-tap variant `24`
+report `command: up`. Use `action` or `command_code` when an automation must
+distinguish those variants.
 
 ```yaml
 event_type: becker_remote_packet_received
@@ -312,7 +321,15 @@ data:
   unit: "12345"
   channel: "1"
   command: "up"
+  action: "up_intermediate"
+  argument: "4"
+  command_code: "24"
 ```
+
+The corresponding down variants are `40` (`down`) and `44`
+(`down_intermediate`). Unknown command bytes are still emitted with their raw
+`argument` and `command_code`, so they can be diagnosed without changing the
+integration first.
 
 # Units and Channels
 The USB stick acts like a remote control
