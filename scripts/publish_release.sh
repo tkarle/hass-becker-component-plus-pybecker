@@ -123,10 +123,17 @@ echo
 read -r -p "Release jetzt auf GitHub veroeffentlichen? [y/N] " confirm
 [[ "$confirm" =~ ^[Yy]$ ]] || { echo "Abgebrochen."; exit 1; }
 
-gh release create "$TAG" \
-  --title "$TITLE" \
-  --notes-file "$NOTES_FILE" \
-  --latest \
-  "${PRERELEASE_ARGS[@]}"
+if [[ ${#PRERELEASE_ARGS[@]} -gt 0 ]]; then
+  gh release create "$TAG" \
+    --title "$TITLE" \
+    --notes-file "$NOTES_FILE" \
+    --latest \
+    "${PRERELEASE_ARGS[@]}"
+else
+  gh release create "$TAG" \
+    --title "$TITLE" \
+    --notes-file "$NOTES_FILE" \
+    --latest
+fi
 
 echo "Fertig: $TAG veroeffentlicht."
