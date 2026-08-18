@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.8` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.9` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -85,6 +85,12 @@ before that stage is received, an unreleased press is promoted to vertical
 tracking after one second. Double presses use the configured intermediate or
 turning position. A newly received physical-remote command also supersedes any
 obsolete timed stop left by an earlier Home Assistant command.
+
+For observed SWC545 blind behavior, received double-UP (`2C`) does not change
+the vertical position. Received double-DOWN (`4C`) is tracked as fully closed;
+the receiver then turns the slats horizontally. These physical-remote actions
+are intentionally separate from Home Assistant's configurable intermediate
+position commands.
 
 The YAML format below remains available for compatibility and advanced options.
 

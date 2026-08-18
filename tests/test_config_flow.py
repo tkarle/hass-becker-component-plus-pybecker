@@ -288,8 +288,18 @@ def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
     entity._travel_to_position.assert_called_once_with(OPEN_POSITION)
 
     entity._travel_to_position.reset_mock()
+    entity._travel_stop.reset_mock()
+    asyncio.run(receive(0x2C))
+    entity._travel_stop.assert_called_once_with()
+    entity._travel_to_position.assert_not_called()
+
+    entity._travel_stop.reset_mock()
     asyncio.run(receive(0x4C))
     entity._travel_to_position.assert_called_once_with(0)
+
+    entity._travel_to_position.reset_mock()
+    asyncio.run(receive(0x24))
+    entity._travel_to_position.assert_called_once_with(25)
 
 
 def test_unreleased_swc545_tilt_press_is_promoted_to_vertical_travel() -> None:

@@ -605,7 +605,13 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 if self._tilt_timeout > time.time():
                     if self._tilt_blind and (self.is_opening or self.is_closing):
                         self._travel_stop()
-            elif action in ("up_double_tap", "up_intermediate") and self._intermediate_position:
+            elif action == "up_double_tap":
+                # On an SWC545 blind remote 2C does not start vertical travel.
+                # Keep the last vertical position and discard any stale travel
+                # estimate started by an earlier packet.
+                self._travel_stop()
+                self._tilt_timeout = time.time()
+            elif action == "up_intermediate" and self._intermediate_position:
                 self._travel_to_position(self._intermediate_pos_up)
                 self._tilt_timeout = time.time()  # reset timeout
             elif action == "up_tilt":
@@ -621,7 +627,12 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                     if action == "up_hold"
                     else time.time() + TILT_RECEIVE_TIMEOUT
                 )
-            elif action in ("down_double_tap", "down_intermediate") and self._intermediate_position:
+            elif action == "down_double_tap":
+                # SWC545 4C closes the blind completely and then turns the
+                # slats horizontally; it is not a configurable 75% target.
+                self._travel_to_position(CLOSED_POSITION)
+                self._tilt_timeout = time.time()
+            elif action == "down_intermediate" and self._intermediate_position:
                 self._travel_to_position(self._intermediate_pos_down)
                 self._tilt_timeout = time.time()  # reset timeout
             elif action == "down_tilt":
