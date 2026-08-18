@@ -70,6 +70,15 @@ COMMANDS = {
     "down": f"{COMMAND_DOWN:02x}".encode(),
     "down_intermediate": f"{COMMAND_DOWN5:02x}".encode(),
     "release": f"{COMMAND_RELEASE:02x}".encode(),
+    # SWC545 venetian-blind remotes combine the direction nibble with
+    # protocol argument flags: 0x08 = SHIFT, 0x04 = double tap and
+    # 0x01 = the first (three-second) hold stage.
+    "up_tilt": b"28",
+    "up_hold": b"29",
+    "up_double_tap": b"2c",
+    "down_tilt": b"48",
+    "down_hold": b"49",
+    "down_double_tap": b"4c",
 }
 
 REMOTE_ID = re.compile(r"(?P<id>[0-9A-F]{5,5}):(?P<ch>[0-9A-F]{1,1})")

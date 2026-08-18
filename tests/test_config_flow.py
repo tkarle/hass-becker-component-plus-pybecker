@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import sqlite3
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from homeassistant.components.cover import CoverDeviceClass, CoverEntityFeature
@@ -46,10 +47,16 @@ from custom_components.becker.const import (
     COVER_TYPE_SHUTTER,
     DATA_YAML_CONFIG,
     DOMAIN,
+    OPEN_POSITION,
     TILT_MODE_BLIND,
     TILT_MODE_INTERMEDIATE,
 )
 from custom_components.becker.cover import BeckerEntity
+from custom_components.becker.pybecker.becker_helper import (
+    MESSAGE,
+    finalize_code,
+    generate_code,
+)
 from custom_components.becker.pybecker.database import Database
 
 
@@ -239,6 +246,48 @@ def test_multiple_remotes_groups_and_central_commands_are_tracked() -> None:
         b"09FC35",
         b"09FC3F",
     }
+
+
+def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
+    """SHIFT tilt, hold and double-tap packets drive distinct state changes."""
+    entity = BeckerEntity(
+        object(),
+        "Büro Fenster",
+        "1:2",
+        COVER_TYPE_BLIND,
+        None,
+        "ABCDE:1",
+        25.5,
+        25.5,
+        25,
+        0,
+        True,
+        False,
+        True,
+        0.3,
+    )
+    entity._travel_stop = Mock()
+    entity._travel_to_position = Mock()
+    entity._update_scheduled_stop_travel_callback = Mock()
+
+    async def receive(command_code: int) -> None:
+        packet = finalize_code(generate_code(1, ["ABCDE", 1, 1], command_code))
+        match = MESSAGE.search(packet)
+        assert match is not None
+        await entity._async_message_received(match)
+
+    asyncio.run(receive(0x28))
+    entity._travel_stop.assert_called_once_with()
+    entity._travel_to_position.assert_not_called()
+
+    entity._travel_stop.reset_mock()
+    asyncio.run(receive(0x29))
+    entity._travel_stop.assert_not_called()
+    entity._travel_to_position.assert_called_once_with(OPEN_POSITION)
+
+    entity._travel_to_position.reset_mock()
+    asyncio.run(receive(0x4C))
+    entity._travel_to_position.assert_called_once_with(0)
 
 
 def test_shutter_type_never_exposes_tilt_controls() -> None:

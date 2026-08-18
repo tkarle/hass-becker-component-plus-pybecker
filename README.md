@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.5` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.7` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -77,6 +77,12 @@ Select a native cover type for every device:
 Existing entries keep their legacy behavior until a type is explicitly saved.
 Changing a type never changes the RF channel, entity unique ID, or rolling
 counter database.
+
+For SWC545 venetian-blind remotes, short UP/DOWN presses are tracked as slat
+movements without starting a full-position timer. The three-second hold stage
+starts vertical travel, while double presses use the configured intermediate
+or turning position. A newly received physical-remote command also supersedes
+any obsolete timed stop left by an earlier Home Assistant command.
 
 The YAML format below remains available for compatibility and advanced options.
 

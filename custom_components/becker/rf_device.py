@@ -31,6 +31,39 @@ PAIR_SCHEMA = vol.Schema(
 )
 
 
+def decode_remote_action(command_code: str) -> str | None:
+    """Decode a complete Centronic command byte, including argument flags."""
+    try:
+        value = int(command_code, 16)
+    except (TypeError, ValueError):
+        return None
+
+    command = value & 0xF0
+    argument = value & 0x0F
+    if command == 0x00:
+        return "release"
+    if command == 0x10:
+        return "halt"
+    if command not in (0x20, 0x40):
+        return None
+
+    direction = "up" if command == 0x20 else "down"
+    # Keep the established action names for the non-SHIFT double-tap codes.
+    if argument == 0x04:
+        return f"{direction}_intermediate"
+    if argument & 0x04:
+        return f"{direction}_double_tap"
+    if argument & 0x08:
+        # SHIFT without a hold stage is the short slat pulse. Once a hold
+        # stage is present the blind changes to maintained vertical travel.
+        if argument & 0x03:
+            return f"{direction}_hold"
+        return f"{direction}_tilt"
+    if argument == 0:
+        return direction
+    return f"{direction}_hold"
+
+
 def remote_packet_event_data(packet):
     """Build backward-compatible event data for a received remote packet."""
     unit = packet.group("unit_id").decode("ascii").upper()
@@ -55,8 +88,7 @@ def remote_packet_event_data(packet):
 
     # The action exposes the complete command byte and therefore distinguishes
     # normal travel commands from intermediate/double-tap variants.
-    exact_code = command_code.lower().encode("ascii")
-    action_name = next((name for name, code in COMMANDS.items() if code == exact_code), None)
+    action_name = decode_remote_action(command_code)
     if action_name is not None:
         data["action"] = action_name
 

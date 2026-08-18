@@ -34,7 +34,6 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     CLOSED_POSITION,
-    COMMANDS,
     CONF_CHANNEL,
     CONF_COVER_TYPE,
     CONF_INTERMEDIATE_DISABLE,
@@ -64,7 +63,7 @@ from .const import (
     TILT_TIME,
     VENTILATION_POSITION,
 )
-from .rf_device import PyBecker
+from .rf_device import PyBecker, decode_remote_action
 from .travelcalculator import TravelCalculator
 
 _LOGGER = logging.getLogger(__name__)
@@ -559,25 +558,57 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         ids = packet.group("unit_id") + packet.group("channel")
         if ids in self._remode_ids:
             _LOGGER.debug("%s received a packet from dispatcher", self._name)
-            command = packet.group("command") + b"0"
-            cmd_arg = packet.group("command") + packet.group("argument")
-            if command == COMMANDS["halt"]:
+            command_code = (
+                packet.group("command") + packet.group("argument")
+            ).decode("ascii")
+            action = decode_remote_action(command_code)
+            if action is None:
+                _LOGGER.debug(
+                    "%s ignores unsupported remote command %s",
+                    self._name,
+                    command_code,
+                )
+                return
+
+            # An external command supersedes a pending local timed stop. This
+            # prevents an earlier position or tilt callback from stopping a
+            # later remote movement.
+            if action != "release":
+                self._update_scheduled_stop_travel_callback()
+
+            if action == "halt":
                 self._travel_stop()
-            elif command == COMMANDS["release"] and self._tilt_timeout > time.time():
+            elif action == "release" and self._tilt_timeout > time.time():
                 if self._tilt_blind and (self.is_opening or self.is_closing):
                     self._travel_stop()
-            elif cmd_arg == COMMANDS["up_intermediate"] and self._intermediate_position:
+            elif action in ("up_double_tap", "up_intermediate") and self._intermediate_position:
                 self._travel_to_position(self._intermediate_pos_up)
                 self._tilt_timeout = time.time()  # reset timeout
-            elif command == COMMANDS["up"]:
-                self._travel_to_position(OPEN_POSITION)
+            elif action == "up_tilt":
+                # A short SWC545 press only turns the slats. It must cancel a
+                # stale vertical estimate but must not start travel to 100%.
+                self._travel_stop()
                 self._tilt_timeout = time.time() + TILT_RECEIVE_TIMEOUT
-            elif cmd_arg == COMMANDS["down_intermediate"] and self._intermediate_position:
+            elif action in ("up", "up_hold"):
+                self._travel_to_position(OPEN_POSITION)
+                self._tilt_timeout = (
+                    time.time()
+                    if action == "up_hold"
+                    else time.time() + TILT_RECEIVE_TIMEOUT
+                )
+            elif action in ("down_double_tap", "down_intermediate") and self._intermediate_position:
                 self._travel_to_position(self._intermediate_pos_down)
                 self._tilt_timeout = time.time()  # reset timeout
-            elif command == COMMANDS["down"]:
-                self._travel_to_position(CLOSED_POSITION)
+            elif action == "down_tilt":
+                self._travel_stop()
                 self._tilt_timeout = time.time() + TILT_RECEIVE_TIMEOUT
+            elif action in ("down", "down_hold"):
+                self._travel_to_position(CLOSED_POSITION)
+                self._tilt_timeout = (
+                    time.time()
+                    if action == "down_hold"
+                    else time.time() + TILT_RECEIVE_TIMEOUT
+                )
 
     @callback
     async def _async_stop_travel(self, _):
