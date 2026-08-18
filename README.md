@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.7` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.8` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -80,9 +80,11 @@ counter database.
 
 For SWC545 venetian-blind remotes, short UP/DOWN presses are tracked as slat
 movements without starting a full-position timer. The three-second hold stage
-starts vertical travel, while double presses use the configured intermediate
-or turning position. A newly received physical-remote command also supersedes
-any obsolete timed stop left by an earlier Home Assistant command.
+confirms vertical travel. Because the receiver can enter maintained travel
+before that stage is received, an unreleased press is promoted to vertical
+tracking after one second. Double presses use the configured intermediate or
+turning position. A newly received physical-remote command also supersedes any
+obsolete timed stop left by an earlier Home Assistant command.
 
 The YAML format below remains available for compatibility and advanced options.
 

@@ -54,6 +54,7 @@ from .const import (
     MANUFACTURER,
     OPEN_POSITION,
     RECEIVE_MESSAGE,
+    REMOTE_HOLD_TIMEOUT,
     REMOTE_ID,
     TEMPLATE_UNKNOWN_STATES,
     TEMPLATE_VALID_CLOSE,
@@ -303,6 +304,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._tilt_blind = tilt_blind
         self._tilt_time_blind = tilt_time_blind
         self._tilt_timeout = time.time()
+        self._pending_remote_direction = None
         if tilt_intermediate or tilt_blind:
             self._cover_features |= CoverEntityFeature.OPEN_TILT | CoverEntityFeature.CLOSE_TILT
         if tilt_blind:
@@ -552,6 +554,23 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                     self.hass, delay, self._async_stop_travel
                 )
 
+    def _update_scheduled_remote_hold_callback(self, direction=None):
+        """Replace or cancel delayed promotion of a remote slat press."""
+        self._callbacks.pop("remote_hold", lambda: None)()
+        self._pending_remote_direction = direction
+        if direction is not None:
+            _LOGGER.debug(
+                "%s waits %s seconds for remote %s release",
+                self.name,
+                REMOTE_HOLD_TIMEOUT,
+                direction,
+            )
+            self._callbacks["remote_hold"] = async_call_later(
+                self.hass,
+                REMOTE_HOLD_TIMEOUT,
+                self._async_remote_hold_expired,
+            )
+
     @callback
     async def _async_message_received(self, packet):
         """Handle received packets."""
@@ -576,11 +595,16 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             if action != "release":
                 self._update_scheduled_stop_travel_callback()
 
+            if action not in ("release", "up_tilt", "down_tilt"):
+                self._update_scheduled_remote_hold_callback()
+
             if action == "halt":
                 self._travel_stop()
-            elif action == "release" and self._tilt_timeout > time.time():
-                if self._tilt_blind and (self.is_opening or self.is_closing):
-                    self._travel_stop()
+            elif action == "release":
+                self._update_scheduled_remote_hold_callback()
+                if self._tilt_timeout > time.time():
+                    if self._tilt_blind and (self.is_opening or self.is_closing):
+                        self._travel_stop()
             elif action in ("up_double_tap", "up_intermediate") and self._intermediate_position:
                 self._travel_to_position(self._intermediate_pos_up)
                 self._tilt_timeout = time.time()  # reset timeout
@@ -589,6 +613,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 # stale vertical estimate but must not start travel to 100%.
                 self._travel_stop()
                 self._tilt_timeout = time.time() + TILT_RECEIVE_TIMEOUT
+                self._update_scheduled_remote_hold_callback("up")
             elif action in ("up", "up_hold"):
                 self._travel_to_position(OPEN_POSITION)
                 self._tilt_timeout = (
@@ -602,6 +627,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             elif action == "down_tilt":
                 self._travel_stop()
                 self._tilt_timeout = time.time() + TILT_RECEIVE_TIMEOUT
+                self._update_scheduled_remote_hold_callback("down")
             elif action in ("down", "down_hold"):
                 self._travel_to_position(CLOSED_POSITION)
                 self._tilt_timeout = (
@@ -609,6 +635,20 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                     if action == "down_hold"
                     else time.time() + TILT_RECEIVE_TIMEOUT
                 )
+
+    @callback
+    async def _async_remote_hold_expired(self, _):
+        """Promote an unreleased SWC545 slat press to vertical travel."""
+        self._callbacks.pop("remote_hold", None)
+        direction = self._pending_remote_direction
+        self._pending_remote_direction = None
+        self._tilt_timeout = time.time()
+        if direction == "up":
+            _LOGGER.debug("%s promotes remote UP press to vertical travel", self.name)
+            self._travel_to_position(OPEN_POSITION)
+        elif direction == "down":
+            _LOGGER.debug("%s promotes remote DOWN press to vertical travel", self.name)
+            self._travel_to_position(CLOSED_POSITION)
 
     @callback
     async def _async_stop_travel(self, _):

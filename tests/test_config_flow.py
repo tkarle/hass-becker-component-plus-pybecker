@@ -269,6 +269,7 @@ def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
     entity._travel_stop = Mock()
     entity._travel_to_position = Mock()
     entity._update_scheduled_stop_travel_callback = Mock()
+    entity._update_scheduled_remote_hold_callback = Mock()
 
     async def receive(command_code: int) -> None:
         packet = finalize_code(generate_code(1, ["ABCDE", 1, 1], command_code))
@@ -279,6 +280,7 @@ def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
     asyncio.run(receive(0x28))
     entity._travel_stop.assert_called_once_with()
     entity._travel_to_position.assert_not_called()
+    entity._update_scheduled_remote_hold_callback.assert_called_once_with("up")
 
     entity._travel_stop.reset_mock()
     asyncio.run(receive(0x29))
@@ -288,6 +290,68 @@ def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
     entity._travel_to_position.reset_mock()
     asyncio.run(receive(0x4C))
     entity._travel_to_position.assert_called_once_with(0)
+
+
+def test_unreleased_swc545_tilt_press_is_promoted_to_vertical_travel() -> None:
+    """The receiver may enter maintained travel before emitting 29 or 49."""
+    entity = BeckerEntity(
+        object(),
+        "Büro Fenster",
+        "1:2",
+        COVER_TYPE_BLIND,
+        None,
+        None,
+        25.5,
+        25.5,
+        25,
+        75,
+        True,
+        False,
+        True,
+        0.3,
+    )
+    entity._travel_to_position = Mock()
+    entity._callbacks["remote_hold"] = Mock()
+
+    entity._pending_remote_direction = "up"
+    asyncio.run(entity._async_remote_hold_expired(None))
+    entity._travel_to_position.assert_called_once_with(OPEN_POSITION)
+    assert entity._pending_remote_direction is None
+    assert "remote_hold" not in entity._callbacks
+
+    entity._travel_to_position.reset_mock()
+    entity._pending_remote_direction = "down"
+    asyncio.run(entity._async_remote_hold_expired(None))
+    entity._travel_to_position.assert_called_once_with(0)
+
+
+def test_remote_hold_promotion_can_be_cancelled_on_release() -> None:
+    """A short slat press must not become vertical travel after release."""
+    entity = BeckerEntity(
+        object(),
+        "Büro Fenster",
+        "1:2",
+        COVER_TYPE_BLIND,
+        None,
+        None,
+        25.5,
+        25.5,
+        25,
+        75,
+        True,
+        False,
+        True,
+        0.3,
+    )
+    cancel = Mock()
+    entity._callbacks["remote_hold"] = cancel
+    entity._pending_remote_direction = "up"
+
+    entity._update_scheduled_remote_hold_callback()
+
+    cancel.assert_called_once_with()
+    assert entity._pending_remote_direction is None
+    assert "remote_hold" not in entity._callbacks
 
 
 def test_shutter_type_never_exposes_tilt_controls() -> None:
