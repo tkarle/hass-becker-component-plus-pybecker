@@ -364,6 +364,34 @@ def test_remote_hold_promotion_can_be_cancelled_on_release() -> None:
     assert "remote_hold" not in entity._callbacks
 
 
+def test_set_known_position_updates_estimate_without_radio_command() -> None:
+    """Manual resynchronization changes only the estimated position."""
+    becker = Mock()
+    entity = BeckerEntity(
+        becker,
+        "Büro Fenster",
+        "1:2",
+        COVER_TYPE_BLIND,
+        None,
+        None,
+        25.5,
+        25.5,
+        25,
+        75,
+        True,
+        False,
+        True,
+        0.3,
+    )
+    entity._update_scheduled_ha_state_callback = Mock()
+
+    asyncio.run(entity.async_set_known_position(position=100))
+
+    assert entity.current_cover_position == 100
+    entity._update_scheduled_ha_state_callback.assert_called_once_with(0)
+    assert not becker.method_calls
+
+
 def test_shutter_type_never_exposes_tilt_controls() -> None:
     """Roller shutters hide all slat controls even with stale legacy flags."""
     stored = update_cover_options(

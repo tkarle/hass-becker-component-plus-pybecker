@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.9` is a development build for Home Assistant 2026.8.
+> Version `0.4.0-beta.10` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -91,6 +91,11 @@ the vertical position. Received double-DOWN (`4C`) is tracked as fully closed;
 the receiver then turns the slats horizontally. These physical-remote actions
 are intentionally separate from Home Assistant's configurable intermediate
 position commands.
+
+If another controller moves a cover without a packet being received, use the
+`becker.set_known_position` action to correct the estimated position without
+sending another radio command. Select the Becker cover and enter the physically
+observed value from 0 (closed) to 100 (open).
 
 The YAML format below remains available for compatibility and advanced options.
 

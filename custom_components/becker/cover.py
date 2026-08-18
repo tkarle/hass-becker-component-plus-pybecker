@@ -23,6 +23,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback
 from homeassistant.exceptions import TemplateError
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import (
@@ -105,6 +106,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the legacy YAML platform."""
+    _async_register_entity_services(hass)
     hass.data.setdefault(DOMAIN, {})[DATA_YAML_CONFIG] = serialize_platform_config(config)
     device = config.get(CONF_DEVICE)
     filename = config.get(CONF_FILENAME)
@@ -115,8 +117,21 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     """Set up covers belonging to a UI-configured Becker hub."""
+    _async_register_entity_services(hass)
     config = {**entry.data, **entry.options}
     await _async_setup_covers(config, async_add_entities, create_devices=True)
+
+
+def _async_register_entity_services(hass):
+    """Register cover entity services once for YAML and config-entry setups."""
+    if hass.services.has_service(DOMAIN, "set_known_position"):
+        return
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "set_known_position",
+        {vol.Required(ATTR_POSITION): vol.All(vol.Coerce(int), vol.Range(min=0, max=100))},
+        "async_set_known_position",
+    )
 
 
 def serialize_platform_config(config) -> dict:
@@ -483,6 +498,17 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 await self._becker.move_up(self._channel)
             if 0 < pos < 100:
                 self._update_scheduled_stop_travel_callback(travel_time)
+
+    async def async_set_known_position(self, **kwargs):
+        """Correct the estimated position without transmitting a command."""
+        position = kwargs[ATTR_POSITION]
+        self._update_scheduled_stop_travel_callback()
+        self._update_scheduled_remote_hold_callback()
+        self._callbacks.pop("update_ha", lambda: None)()
+        self._tc.set_position(100 - position)
+        self._tilt_timeout = time.time()
+        _LOGGER.info("%s known position set to %s without radio command", self.name, position)
+        self._update_scheduled_ha_state_callback(0)
 
     def _travel_to_position(self, position):
         """Start TravelCalculator and update ha-state."""

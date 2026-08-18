@@ -11,3 +11,21 @@ pair:
       example: 1
 log_units:
   description: "Log all configured/paired units"
+set_known_position:
+  name: "Set known position"
+  description: "Correct the estimated cover position without sending a radio command."
+  target:
+    entity:
+      integration: becker
+      domain: cover
+  fields:
+    position:
+      name: "Known position"
+      description: "The physically observed position: 0 is closed and 100 is open."
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: slider
