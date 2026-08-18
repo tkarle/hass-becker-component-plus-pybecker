@@ -22,26 +22,31 @@
 # (`gh auth login`), im Repo-Root ausgefuehrt.
 #
 # Verwendung:
-#   ./publish_release.sh v0.4.0-beta.11 "Kurzbeschreibung" notes.md [--stable]
+#   ./publish_release.sh v0.4.0-beta.11 "Kurzbeschreibung" notes.md [--prerelease]
 #
 # Beispiel:
 #   ./publish_release.sh v0.4.0-beta.11 "Fix double-up regression" \
 #       release-notes/beta11.md
 #
-# Ohne --stable wird das Release automatisch als "Pre-release" markiert,
-# sobald der Tag "-beta.", "-alpha." oder "-rc." enthaelt.
+# WICHTIG (19.08.2026): Releases werden standardmaessig NICHT als GitHub
+# "Pre-release" markiert, auch wenn der Tag "-beta.", "-alpha." oder "-rc."
+# enthaelt. Grund: HACS bietet ein als "Pre-release" markiertes GitHub-
+# Release Nutzern ohne aktivierten Beta-Kanal gar nicht erst als Update an --
+# fuer dieses Repo sollen aber auch Beta-Tags als normale HACS-Updates
+# ankommen. Nur mit dem expliziten vierten Argument "--prerelease" wird das
+# GitHub-Flag trotzdem gesetzt.
 
 set -euo pipefail
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: $0 <tag, z.B. v0.4.0-beta.11> <Kurzbeschreibung> <notes.md-Datei> [--stable]" >&2
+  echo "Usage: $0 <tag, z.B. v0.4.0-beta.11> <Kurzbeschreibung> <notes.md-Datei> [--prerelease]" >&2
   exit 1
 fi
 
 TAG="$1"
 SHORT_DESC="$2"
 NOTES_FILE="$3"
-STABLE_FLAG="${4:-}"
+PRERELEASE_FLAG="${4:-}"
 
 # --- Vorab-Checks -----------------------------------------------------
 
@@ -105,10 +110,8 @@ fi
 TITLE="${TAG} – ${SHORT_DESC}"
 
 PRERELEASE_ARGS=()
-if [[ "$STABLE_FLAG" != "--stable" ]]; then
-  if [[ "$TAG" =~ -(beta|alpha|rc)\. ]]; then
-    PRERELEASE_ARGS=(--prerelease)
-  fi
+if [[ "$PRERELEASE_FLAG" == "--prerelease" ]]; then
+  PRERELEASE_ARGS=(--prerelease)
 fi
 
 echo "Erstelle Release:"
@@ -123,6 +126,7 @@ read -r -p "Release jetzt auf GitHub veroeffentlichen? [y/N] " confirm
 gh release create "$TAG" \
   --title "$TITLE" \
   --notes-file "$NOTES_FILE" \
+  --latest \
   "${PRERELEASE_ARGS[@]}"
 
 echo "Fertig: $TAG veroeffentlicht."
