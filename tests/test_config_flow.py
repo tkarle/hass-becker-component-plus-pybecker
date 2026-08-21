@@ -302,6 +302,38 @@ def test_swc545_remote_codes_do_not_turn_short_tilt_into_full_travel() -> None:
     entity._travel_to_position.assert_called_once_with(25)
 
 
+def test_legacy_blind_double_tap_keeps_vertical_position() -> None:
+    """A blind without configured tilt tracking must not jump vertically."""
+    entity = BeckerEntity(
+        object(),
+        "Wohnzimmer links",
+        "2:3",
+        COVER_TYPE_BLIND,
+        None,
+        "ABCDE:1",
+        60,
+        63.5,
+        25,
+        75,
+        True,
+        False,
+        False,
+        0.3,
+    )
+    entity._travel_stop = Mock()
+    entity._travel_to_position = Mock()
+    entity._update_scheduled_stop_travel_callback = Mock()
+    entity._update_scheduled_remote_hold_callback = Mock()
+
+    packet = finalize_code(generate_code(1, ["ABCDE", 1, 1], 0x24))
+    match = MESSAGE.search(packet)
+    assert match is not None
+    asyncio.run(entity._async_message_received(match))
+
+    entity._travel_stop.assert_called_once_with()
+    entity._travel_to_position.assert_not_called()
+
+
 def test_unreleased_swc545_tilt_press_is_promoted_to_vertical_travel() -> None:
     """The receiver may enter maintained travel before emitting 29 or 49."""
     entity = BeckerEntity(

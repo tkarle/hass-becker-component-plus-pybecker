@@ -638,8 +638,20 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 self._travel_stop()
                 self._tilt_timeout = time.time()
             elif action == "up_intermediate" and self._intermediate_position:
-                self._travel_to_position(self._intermediate_pos_up)
-                self._tilt_timeout = time.time()  # reset timeout
+                if (
+                    self._cover_type == COVER_TYPE_BLIND
+                    and not self._tilt_intermediate
+                    and not self._tilt_blind
+                ):
+                    # Some Becker blind remotes (notably SWC445) emit the
+                    # legacy 24 packet for a slat-only double-UP.  The blind
+                    # stays at its vertical position; do not project the
+                    # configured intermediate percentage into HA.
+                    self._travel_stop()
+                    self._tilt_timeout = time.time()
+                else:
+                    self._travel_to_position(self._intermediate_pos_up)
+                    self._tilt_timeout = time.time()  # reset timeout
             elif action == "up_tilt":
                 # A short SWC545 press only turns the slats. It must cancel a
                 # stale vertical estimate but must not start travel to 100%.
@@ -659,8 +671,18 @@ class BeckerEntity(CoverEntity, RestoreEntity):
                 self._travel_to_position(CLOSED_POSITION)
                 self._tilt_timeout = time.time()
             elif action == "down_intermediate" and self._intermediate_position:
-                self._travel_to_position(self._intermediate_pos_down)
-                self._tilt_timeout = time.time()  # reset timeout
+                if (
+                    self._cover_type == COVER_TYPE_BLIND
+                    and not self._tilt_intermediate
+                    and not self._tilt_blind
+                ):
+                    # Mirror the SWC445 UP handling for the corresponding
+                    # slat-only double-DOWN packet.
+                    self._travel_stop()
+                    self._tilt_timeout = time.time()
+                else:
+                    self._travel_to_position(self._intermediate_pos_down)
+                    self._tilt_timeout = time.time()  # reset timeout
             elif action == "down_tilt":
                 self._travel_stop()
                 self._tilt_timeout = time.time() + TILT_RECEIVE_TIMEOUT
