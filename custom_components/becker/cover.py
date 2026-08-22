@@ -22,7 +22,7 @@ from homeassistant.const import (
     CONF_VALUE_TEMPLATE,
 )
 from homeassistant.core import callback
-from homeassistant.exceptions import TemplateError
+from homeassistant.exceptions import HomeAssistantError, TemplateError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
@@ -42,6 +42,7 @@ from .const import (
     CONF_INTERMEDIATE_POSITION_DOWN,
     CONF_INTERMEDIATE_POSITION_UP,
     CONF_REMOTE_ID,
+    CONF_SUN_PROTECTION_POSITION,
     CONF_TILT_BLIND,
     CONF_TILT_INTERMEDIATE,
     CONF_TILT_TIME_BLIND,
@@ -92,6 +93,9 @@ COVER_SCHEMA = vol.Schema(
         vol.Optional(CONF_TILT_INTERMEDIATE): cv.boolean,
         vol.Optional(CONF_TILT_BLIND, default=False): cv.boolean,
         vol.Optional(CONF_TILT_TIME_BLIND, default=TILT_TIME): cv.positive_float,
+        vol.Optional(CONF_SUN_PROTECTION_POSITION): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=100)
+        ),
     }
 )
 
@@ -140,6 +144,12 @@ def _async_register_entity_services(hass):
             "move_down_intermediate",
             {},
             "async_move_down_intermediate",
+        )
+    if not hass.services.has_service(DOMAIN, "move_to_sun_protection"):
+        platform.async_register_entity_service(
+            "move_to_sun_protection",
+            {},
+            "async_move_to_sun_protection",
         )
 
 
@@ -229,6 +239,7 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
             )
             tilt_intermediate = False
         tilt_time_blind = device_config.get(CONF_TILT_TIME_BLIND)
+        sun_protection_position = device_config.get(CONF_SUN_PROTECTION_POSITION)
         if cover_type is None:
             # Preserve legacy behavior until a type is explicitly selected.
             cover_type = (
@@ -262,6 +273,7 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
                 tilt_intermediate,
                 tilt_blind,
                 tilt_time_blind,
+                sun_protection_position=sun_protection_position,
                 create_devices=create_devices,
             )
         )
@@ -289,6 +301,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         tilt_blind,
         tilt_time_blind,
         *,
+        sun_protection_position=None,
         create_devices=False,
     ):
         """Init the Becker entity."""
@@ -327,6 +340,9 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._tilt_intermediate = tilt_intermediate
         self._tilt_blind = tilt_blind
         self._tilt_time_blind = tilt_time_blind
+        self._sun_protection_position = sun_protection_position
+        if sun_protection_position is not None:
+            self._attr[CONF_SUN_PROTECTION_POSITION] = str(sun_protection_position)
         self._tilt_timeout = time.time()
         self._pending_remote_direction = None
         if tilt_intermediate or tilt_blind:
@@ -524,6 +540,18 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         if self._intermediate_position:
             self._travel_to_position(self._intermediate_pos_down)
         await self._becker.move_down_intermediate(self._channel)
+
+    async def async_move_to_sun_protection(self, **kwargs):
+        """Move to this cover's configured sun-protection position."""
+        if self._sun_protection_position is not None:
+            await self.async_set_cover_position(position=self._sun_protection_position)
+            return
+        if self._cover_type == COVER_TYPE_BLIND:
+            await self.async_move_down_intermediate()
+            return
+        raise HomeAssistantError(
+            f"No sun-protection position configured for {self.name}"
+        )
 
     def _travel_to_position(self, position):
         """Start TravelCalculator and update ha-state."""

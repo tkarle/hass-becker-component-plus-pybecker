@@ -48,6 +48,7 @@ from .const import (
     CONF_MIGRATION_PENDING,
     CONF_REMOTE_ID,
     CONF_SELECTED_COVER,
+    CONF_SUN_PROTECTION_POSITION,
     CONF_TILT_BLIND,
     CONF_TILT_INTERMEDIATE,
     CONF_TILT_MODE,
@@ -225,6 +226,12 @@ def update_cover_options(cover: dict[str, Any], user_input: dict[str, Any]) -> d
             updated.pop(key, None)
         else:
             updated[key] = value
+
+    sun_protection_position = user_input.get(CONF_SUN_PROTECTION_POSITION)
+    if sun_protection_position is None:
+        updated.pop(CONF_SUN_PROTECTION_POSITION, None)
+    else:
+        updated[CONF_SUN_PROTECTION_POSITION] = sun_protection_position
 
     template = str(user_input.get(CONF_VALUE_TEMPLATE, "")).strip()
     if template:
@@ -635,6 +642,15 @@ class BeckerOptionsFlow(OptionsFlow):
                     TextSelectorConfig(multiline=True)
                 ),
                 vol.Optional(CONF_REMOTE_ID): TextSelector(),
+                vol.Optional(CONF_SUN_PROTECTION_POSITION): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
                 vol.Required(CONF_INTERMEDIATE_POSITION): BooleanSelector(),
                 vol.Required(CONF_INTERMEDIATE_POSITION_UP): NumberSelector(
                     NumberSelectorConfig(
@@ -672,6 +688,7 @@ class BeckerOptionsFlow(OptionsFlow):
             CONF_TRAVELLING_TIME_DOWN,
             CONF_VALUE_TEMPLATE,
             CONF_REMOTE_ID,
+            CONF_SUN_PROTECTION_POSITION,
         ):
             if key in cover:
                 suggested[key] = cover[key]

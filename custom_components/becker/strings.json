@@ -82,6 +82,7 @@
           "travelling_time_down": "Full travel time down",
           "value_template": "Position value template",
           "remote_id": "Physical remote IDs",
+          "sun_protection_position": "Sun-protection position",
           "intermediate_position": "Enable programmed intermediate positions",
           "intermediate_position_up": "Tracked position after intermediate UP",
           "intermediate_position_down": "Tracked position after intermediate DOWN"
@@ -91,6 +92,7 @@
           "travelling_time_down": "Seconds from fully open to fully closed.",
           "value_template": "Optional advanced template returning 0–100, open/closed, true/false, or an unknown value.",
           "remote_id": "Optional IDs such as 12345:2. Separate multiple IDs with commas.",
+          "sun_protection_position": "Optional Home Assistant position in percent. If left empty, venetian blinds use the receiver's programmed DOWN2 position.",
           "intermediate_position_up": "Home Assistant position in percent for the programmed UP double-press target.",
           "intermediate_position_down": "Home Assistant position in percent for the programmed DOWN double-press target."
         }

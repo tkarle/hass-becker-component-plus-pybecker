@@ -38,3 +38,12 @@ move_down_intermediate:
     entity:
       integration: becker
       domain: cover
+move_to_sun_protection:
+  name: "Move to sun-protection position"
+  description: >-
+    Move a roller shutter to its configured sun-protection percentage, or
+    send DOWN2 to a venetian blind that has no percentage configured.
+  target:
+    entity:
+      integration: becker
+      domain: cover

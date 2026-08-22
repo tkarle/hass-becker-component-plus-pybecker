@@ -19,6 +19,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.becker.config_flow import (
     BeckerConfigFlow,
@@ -37,6 +38,7 @@ from custom_components.becker.const import (
     CONF_INTERMEDIATE_POSITION_UP,
     CONF_MIGRATION_PENDING,
     CONF_REMOTE_ID,
+    CONF_SUN_PROTECTION_POSITION,
     CONF_TILT_BLIND,
     CONF_TILT_INTERMEDIATE,
     CONF_TILT_MODE,
@@ -155,6 +157,7 @@ def test_update_cover_options_preserves_channel_and_normalizes_modes() -> None:
             CONF_TRAVELLING_TIME_UP: 31.5,
             CONF_TRAVELLING_TIME_DOWN: 27,
             CONF_REMOTE_ID: "abcde:2, 12345:f",
+            CONF_SUN_PROTECTION_POSITION: 42,
             CONF_INTERMEDIATE_POSITION: True,
             CONF_INTERMEDIATE_POSITION_UP: 30,
             CONF_INTERMEDIATE_POSITION_DOWN: 70,
@@ -166,6 +169,7 @@ def test_update_cover_options_preserves_channel_and_normalizes_modes() -> None:
     assert result[CONF_CHANNEL] == "2:4"
     assert result[CONF_TRAVELLING_TIME_UP] == 31.5
     assert result[CONF_REMOTE_ID] == "ABCDE:2, 12345:F"
+    assert result[CONF_SUN_PROTECTION_POSITION] == 42
     assert result[CONF_TILT_BLIND] is True
     assert result[CONF_TILT_INTERMEDIATE] is False
 
@@ -452,6 +456,91 @@ def test_move_down_intermediate_sends_down2_and_tracks_configured_position() -> 
     becker.move_down_intermediate.assert_awaited_once_with("2:3")
     assert entity._tc._travel_to_position == 25
     entity._update_scheduled_ha_state_callback.assert_called_once()
+
+
+def test_move_to_sun_protection_uses_configured_shutter_position() -> None:
+    """Roller shutters use their absolute per-entity sun-protection percentage."""
+    becker = Mock()
+    becker.move_down = AsyncMock()
+    entity = BeckerEntity(
+        becker,
+        "Küche",
+        "2:1",
+        COVER_TYPE_SHUTTER,
+        None,
+        None,
+        12,
+        13,
+        25,
+        75,
+        False,
+        False,
+        False,
+        0.3,
+        sun_protection_position=42,
+    )
+    entity._tc.set_position(0)
+    entity._update_scheduled_ha_state_callback = Mock()
+    entity._update_scheduled_stop_travel_callback = Mock()
+
+    asyncio.run(entity.async_move_to_sun_protection())
+
+    becker.move_down.assert_awaited_once_with("2:1")
+    assert entity._tc._travel_to_position == 58
+    entity._update_scheduled_stop_travel_callback.assert_called_once_with(
+        pytest.approx(6.96)
+    )
+
+
+def test_move_to_sun_protection_uses_down2_for_blind_without_percentage() -> None:
+    """Venetian blinds fall back to their receiver-programmed DOWN2 target."""
+    becker = Mock()
+    becker.move_down_intermediate = AsyncMock()
+    entity = BeckerEntity(
+        becker,
+        "Wohnzimmer Links",
+        "2:3",
+        COVER_TYPE_BLIND,
+        None,
+        None,
+        60,
+        63.5,
+        25,
+        75,
+        True,
+        False,
+        False,
+        0.3,
+    )
+    entity._tc.set_position(0)
+    entity._update_scheduled_ha_state_callback = Mock()
+
+    asyncio.run(entity.async_move_to_sun_protection())
+
+    becker.move_down_intermediate.assert_awaited_once_with("2:3")
+
+
+def test_move_to_sun_protection_rejects_unconfigured_shutter() -> None:
+    """An unconfigured shutter fails closed instead of sending DOWN2."""
+    entity = BeckerEntity(
+        Mock(),
+        "Küche",
+        "2:1",
+        COVER_TYPE_SHUTTER,
+        None,
+        None,
+        12,
+        13,
+        25,
+        75,
+        False,
+        False,
+        False,
+        0.3,
+    )
+
+    with pytest.raises(HomeAssistantError, match="No sun-protection position"):
+        asyncio.run(entity.async_move_to_sun_protection())
 
 
 def test_shutter_type_never_exposes_tilt_controls() -> None:

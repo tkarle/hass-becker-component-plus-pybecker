@@ -24,6 +24,7 @@ CONF_ADD_ANOTHER = "add_another"
 CONF_COVER_TYPE = "cover_type"
 CONF_MIGRATION_PENDING = "migration_pending"
 CONF_SELECTED_COVER = "selected_cover"
+CONF_SUN_PROTECTION_POSITION = "sun_protection_position"
 CONF_TILT_MODE = "tilt_mode"
 
 TILT_MODE_NONE = "none"
