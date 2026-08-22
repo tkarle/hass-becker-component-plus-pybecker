@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import sqlite3
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from homeassistant.components.cover import CoverDeviceClass, CoverEntityFeature
@@ -422,6 +422,36 @@ def test_set_known_position_updates_estimate_without_radio_command() -> None:
     assert entity.current_cover_position == 100
     entity._update_scheduled_ha_state_callback.assert_called_once_with(0)
     assert not becker.method_calls
+
+
+def test_move_down_intermediate_sends_down2_and_tracks_configured_position() -> None:
+    """The entity service sends DOWN2 and uses the configured HA estimate."""
+    becker = Mock()
+    becker.move_down_intermediate = AsyncMock()
+    entity = BeckerEntity(
+        becker,
+        "Wohnzimmer Links",
+        "2:3",
+        COVER_TYPE_BLIND,
+        None,
+        None,
+        25.5,
+        25.5,
+        25,
+        75,
+        True,
+        False,
+        False,
+        0.3,
+    )
+    entity._tc.set_position(0)
+    entity._update_scheduled_ha_state_callback = Mock()
+
+    asyncio.run(entity.async_move_down_intermediate())
+
+    becker.move_down_intermediate.assert_awaited_once_with("2:3")
+    assert entity._tc._travel_to_position == 25
+    entity._update_scheduled_ha_state_callback.assert_called_once()
 
 
 def test_shutter_type_never_exposes_tilt_controls() -> None:

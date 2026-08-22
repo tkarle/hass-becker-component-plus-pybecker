@@ -124,14 +124,23 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
 
 def _async_register_entity_services(hass):
     """Register cover entity services once for YAML and config-entry setups."""
-    if hass.services.has_service(DOMAIN, "set_known_position"):
-        return
     platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(
-        "set_known_position",
-        {vol.Required(ATTR_POSITION): vol.All(vol.Coerce(int), vol.Range(min=0, max=100))},
-        "async_set_known_position",
-    )
+    if not hass.services.has_service(DOMAIN, "set_known_position"):
+        platform.async_register_entity_service(
+            "set_known_position",
+            {
+                vol.Required(ATTR_POSITION): vol.All(
+                    vol.Coerce(int), vol.Range(min=0, max=100)
+                )
+            },
+            "async_set_known_position",
+        )
+    if not hass.services.has_service(DOMAIN, "move_down_intermediate"):
+        platform.async_register_entity_service(
+            "move_down_intermediate",
+            {},
+            "async_move_down_intermediate",
+        )
 
 
 def serialize_platform_config(config) -> dict:
@@ -509,6 +518,12 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._tilt_timeout = time.time()
         _LOGGER.info("%s known position set to %s without radio command", self.name, position)
         self._update_scheduled_ha_state_callback(0)
+
+    async def async_move_down_intermediate(self, **kwargs):
+        """Move to the receiver's programmed DOWN intermediate position."""
+        if self._intermediate_position:
+            self._travel_to_position(self._intermediate_pos_down)
+        await self._becker.move_down_intermediate(self._channel)
 
     def _travel_to_position(self, position):
         """Start TravelCalculator and update ha-state."""

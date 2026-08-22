@@ -29,3 +29,12 @@ set_known_position:
           max: 100
           step: 1
           mode: slider
+move_down_intermediate:
+  name: "Move to programmed DOWN intermediate position"
+  description: >-
+    Send the Becker DOWN2 command to move the receiver to its programmed
+    intermediate position, such as a stored sun-protection position.
+  target:
+    entity:
+      integration: becker
+      domain: cover
