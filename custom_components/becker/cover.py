@@ -2,6 +2,7 @@
 
 import logging
 import time
+from dataclasses import dataclass
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -173,6 +174,90 @@ def serialize_platform_config(config) -> dict:
     return result
 
 
+@dataclass
+class TiltConfig:
+    """Resolved intermediate-position and tilt settings for a cover."""
+
+    cover_type: str
+    intermediate_position: bool
+    intermediate_pos_up: int | None
+    intermediate_pos_down: int | None
+    tilt_intermediate: bool
+    tilt_blind: bool
+    tilt_time_blind: float | None
+
+
+def _resolve_tilt_config(device_config: dict, friendly_name: str) -> TiltConfig:
+    """Validate and resolve the intermediate-position/tilt settings for a cover.
+
+    Handles the deprecated intermediate_disable option, the mutual exclusivity
+    of tilt_intermediate/tilt_blind, and the legacy cover_type auto-detection.
+    """
+    cover_type = device_config.get(CONF_COVER_TYPE)
+
+    intermediate_disable = device_config.get(CONF_INTERMEDIATE_DISABLE)
+    if intermediate_disable is not None:
+        _LOGGER.error(
+            "%s is no longer supported for cover %s. Remove it from "
+            "configuration.yaml and replace it with %s: %s",
+            CONF_INTERMEDIATE_DISABLE,
+            friendly_name,
+            CONF_TILT_INTERMEDIATE,
+            not intermediate_disable,
+        )
+    else:
+        intermediate_disable = False
+    intermediate_position = (
+        device_config.get(CONF_INTERMEDIATE_POSITION) and not intermediate_disable
+    )
+    intermediate_pos_up = device_config.get(CONF_INTERMEDIATE_POSITION_UP)
+    intermediate_pos_down = device_config.get(CONF_INTERMEDIATE_POSITION_DOWN)
+
+    tilt_intermediate = device_config.get(CONF_TILT_INTERMEDIATE)
+    tilt_blind = device_config.get(CONF_TILT_BLIND)
+    if tilt_intermediate is None:
+        tilt_intermediate = intermediate_position and not tilt_blind
+    if tilt_intermediate and not intermediate_position:
+        _LOGGER.error(
+            "%s is enabled for cover %s, but %s is deactivated. Will deactivate %s.",
+            CONF_TILT_INTERMEDIATE,
+            friendly_name,
+            CONF_INTERMEDIATE_POSITION,
+            CONF_TILT_INTERMEDIATE,
+        )
+        tilt_intermediate = False
+    if tilt_intermediate and tilt_blind:
+        _LOGGER.error(
+            "Both, %s and %s are enabled for cover %s. Will use %s and deactivate %s.",
+            CONF_TILT_INTERMEDIATE,
+            CONF_TILT_BLIND,
+            friendly_name,
+            CONF_TILT_BLIND,
+            CONF_TILT_INTERMEDIATE,
+        )
+        tilt_intermediate = False
+    tilt_time_blind = device_config.get(CONF_TILT_TIME_BLIND)
+
+    if cover_type is None:
+        # Preserve legacy behavior until a type is explicitly selected.
+        cover_type = (
+            COVER_TYPE_BLIND if tilt_intermediate or tilt_blind else COVER_TYPE_SHUTTER
+        )
+    elif cover_type == COVER_TYPE_SHUTTER:
+        tilt_intermediate = False
+        tilt_blind = False
+
+    return TiltConfig(
+        cover_type=cover_type,
+        intermediate_position=intermediate_position,
+        intermediate_pos_up=intermediate_pos_up,
+        intermediate_pos_down=intermediate_pos_down,
+        tilt_intermediate=tilt_intermediate,
+        tilt_blind=tilt_blind,
+        tilt_time_blind=tilt_time_blind,
+    )
+
+
 async def _async_setup_covers(config, async_add_entities, *, create_devices=False):
     """Create cover entities from either YAML or config-entry data."""
     covers = []
@@ -181,7 +266,6 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
         device_config = COVER_SCHEMA(device_config)
         friendly_name = device_config.get(CONF_FRIENDLY_NAME, device)
         channel = device_config.get(CONF_CHANNEL)
-        cover_type = device_config.get(CONF_COVER_TYPE)
         state_template = device_config.get(CONF_VALUE_TEMPLATE)
         remote_id = device_config.get(CONF_REMOTE_ID)
         travel_time_down = device_config.get(CONF_TRAVELLING_TIME_DOWN)
@@ -196,60 +280,8 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
                 CONF_VALUE_TEMPLATE,
                 CONF_TRAVELLING_TIME_UP.rpartition("_")[0],
             )
-        # intermediate settings
-        intermediate_disable = device_config.get(CONF_INTERMEDIATE_DISABLE)
-        if intermediate_disable is not None:
-            _LOGGER.error(
-                "%s is no longer supported for cover %s. Remove it from "
-                "configuration.yaml and replace it with %s: %s",
-                CONF_INTERMEDIATE_DISABLE,
-                friendly_name,
-                CONF_TILT_INTERMEDIATE,
-                not intermediate_disable,
-            )
-        else:
-            intermediate_disable = False
-        intermediate_position = (
-            device_config.get(CONF_INTERMEDIATE_POSITION) and not intermediate_disable
-        )
-        intermediate_pos_up = device_config.get(CONF_INTERMEDIATE_POSITION_UP)
-        intermediate_pos_down = device_config.get(CONF_INTERMEDIATE_POSITION_DOWN)
-        # tilt settings
-        tilt_intermediate = device_config.get(CONF_TILT_INTERMEDIATE)
-        tilt_blind = device_config.get(CONF_TILT_BLIND)
-        if tilt_intermediate is None:
-            tilt_intermediate = intermediate_position and not tilt_blind
-        if tilt_intermediate and not intermediate_position:
-            _LOGGER.error(
-                "%s is enabled for cover %s, but %s is deactivated. Will deactivate %s.",
-                CONF_TILT_INTERMEDIATE,
-                friendly_name,
-                CONF_INTERMEDIATE_POSITION,
-                CONF_TILT_INTERMEDIATE,
-            )
-            tilt_intermediate = False
-        if tilt_intermediate and tilt_blind:
-            _LOGGER.error(
-                "Both, %s and %s are enabled for cover %s. Will use %s and deactivate %s.",
-                CONF_TILT_INTERMEDIATE,
-                CONF_TILT_BLIND,
-                friendly_name,
-                CONF_TILT_BLIND,
-                CONF_TILT_INTERMEDIATE,
-            )
-            tilt_intermediate = False
-        tilt_time_blind = device_config.get(CONF_TILT_TIME_BLIND)
+        tilt_config = _resolve_tilt_config(device_config, friendly_name)
         sun_protection_position = device_config.get(CONF_SUN_PROTECTION_POSITION)
-        if cover_type is None:
-            # Preserve legacy behavior until a type is explicitly selected.
-            cover_type = (
-                COVER_TYPE_BLIND
-                if tilt_intermediate or tilt_blind
-                else COVER_TYPE_SHUTTER
-            )
-        elif cover_type == COVER_TYPE_SHUTTER:
-            tilt_intermediate = False
-            tilt_blind = False
 
         if channel is None:
             _LOGGER.error("Must specify %s", CONF_CHANNEL)
@@ -262,17 +294,17 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
                 PyBecker.becker,
                 friendly_name,
                 channel,
-                cover_type,
+                tilt_config.cover_type,
                 state_template,
                 remote_id,
                 travel_time_down,
                 travel_time_up,
-                intermediate_pos_up,
-                intermediate_pos_down,
-                intermediate_position,
-                tilt_intermediate,
-                tilt_blind,
-                tilt_time_blind,
+                tilt_config.intermediate_pos_up,
+                tilt_config.intermediate_pos_down,
+                tilt_config.intermediate_position,
+                tilt_config.tilt_intermediate,
+                tilt_config.tilt_blind,
+                tilt_config.tilt_time_blind,
                 sun_protection_position=sun_protection_position,
                 create_devices=create_devices,
             )
