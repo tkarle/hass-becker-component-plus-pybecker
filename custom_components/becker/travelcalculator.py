@@ -156,7 +156,7 @@ class TravelCalculator:
         progress = (
             time.time() - self._last_known_position_timestamp
         ) / remaining_travel_time
-        return int(self._last_known_position + relative_position * progress)
+        return round(self._last_known_position + relative_position * progress)
 
     def calculate_travel_time(self, from_position: int, to_position: int) -> float:
         """Calculate time to travel from one position to another."""
