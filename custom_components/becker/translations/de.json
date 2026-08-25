@@ -82,19 +82,14 @@
           "travelling_time_down": "Gesamte Fahrzeit abwärts",
           "value_template": "Template für die Position",
           "remote_id": "IDs physischer Fernbedienungen",
-          "sun_protection_position": "Sonnenschutzposition",
-          "intermediate_position": "Angelernte Zwischenpositionen aktivieren",
-          "intermediate_position_up": "Angezeigte Position nach Zwischenposition AUF",
-          "intermediate_position_down": "Angezeigte Position nach Zwischenposition AB"
+          "sun_protection_position": "Sonnenschutzposition"
         },
         "data_description": {
           "travelling_time_up": "Sekunden von ganz geschlossen bis ganz offen. Wird nur eine Richtung angegeben, gilt sie für beide.",
           "travelling_time_down": "Sekunden von ganz offen bis ganz geschlossen.",
           "value_template": "Optionales Experten-Template mit Ergebnis 0–100, offen/geschlossen, wahr/falsch oder einem unbekannten Wert.",
           "remote_id": "Optional, zum Beispiel 12345:2. Mehrere IDs durch Kommas trennen.",
-          "sun_protection_position": "Optionale Home-Assistant-Position in Prozent. Bleibt das Feld leer, verwenden Jalousien die angelernte DOWN2-Position.",
-          "intermediate_position_up": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AUF.",
-          "intermediate_position_down": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AB."
+          "sun_protection_position": "Optionale Home-Assistant-Position in Prozent. Bei Jalousien wird beim Leerlassen die angelernte DOWN2-Position verwendet; bei Rollläden ist hier ein Wert erforderlich, damit der Sonnenschutz-Dienst funktioniert."
         }
       },
       "blind_options": {
@@ -102,11 +97,16 @@
         "description": "Diese Bedienelemente werden nur bei Lamellenjalousien auf Kanal {channel} angeboten.",
         "data": {
           "tilt_mode": "Lamellensteuerung",
-          "tilt_time_blind": "Kurze Impulsdauer für Lamellen"
+          "tilt_time_blind": "Kurze Impulsdauer für Lamellen",
+          "intermediate_position": "Angelernte Zwischenpositionen aktivieren",
+          "intermediate_position_up": "Angezeigte Position nach Zwischenposition AUF",
+          "intermediate_position_down": "Angezeigte Position nach Zwischenposition AB"
         },
         "data_description": {
           "tilt_mode": "„Zwischenposition“ legt die Lamellentasten auf die angelernten Ziele; „Jalousie“ sendet einen kurzen AUF-/AB-Impuls.",
-          "tilt_time_blind": "Wird nur im Modus „Jalousie“ verwendet."
+          "tilt_time_blind": "Wird nur im Modus „Jalousie“ verwendet.",
+          "intermediate_position_up": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AUF.",
+          "intermediate_position_down": "Home-Assistant-Position in Prozent für das angelernte Ziel bei Doppel-AB."
         }
       }
     },

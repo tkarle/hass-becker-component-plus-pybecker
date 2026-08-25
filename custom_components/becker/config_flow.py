@@ -206,12 +206,15 @@ def update_cover_options(cover: dict[str, Any], user_input: dict[str, Any]) -> d
     if cover_type not in (COVER_TYPE_SHUTTER, COVER_TYPE_BLIND):
         raise ValueError("Invalid cover type")
     updated[CONF_COVER_TYPE] = cover_type
-    for key in (
-        CONF_INTERMEDIATE_POSITION,
-        CONF_INTERMEDIATE_POSITION_UP,
-        CONF_INTERMEDIATE_POSITION_DOWN,
+    # Only venetian blinds expose these in the UI (see async_step_blind_options);
+    # roller shutters keep their existing/default value since tilt is force-disabled
+    # for them regardless.
+    for key, default in (
+        (CONF_INTERMEDIATE_POSITION, True),
+        (CONF_INTERMEDIATE_POSITION_UP, VENTILATION_POSITION),
+        (CONF_INTERMEDIATE_POSITION_DOWN, INTERMEDIATE_POSITION),
     ):
-        updated[key] = user_input[key]
+        updated[key] = user_input.get(key, cover.get(key, default))
     updated[CONF_TILT_TIME_BLIND] = user_input.get(
         CONF_TILT_TIME_BLIND,
         cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
@@ -651,37 +654,11 @@ class BeckerOptionsFlow(OptionsFlow):
                         mode=NumberSelectorMode.BOX,
                     )
                 ),
-                vol.Required(CONF_INTERMEDIATE_POSITION): BooleanSelector(),
-                vol.Required(CONF_INTERMEDIATE_POSITION_UP): NumberSelector(
-                    NumberSelectorConfig(
-                        min=0,
-                        max=100,
-                        step=1,
-                        unit_of_measurement="%",
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
-                vol.Required(CONF_INTERMEDIATE_POSITION_DOWN): NumberSelector(
-                    NumberSelectorConfig(
-                        min=0,
-                        max=100,
-                        step=1,
-                        unit_of_measurement="%",
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
             }
         )
         suggested = {
             CONF_FRIENDLY_NAME: cover.get(CONF_FRIENDLY_NAME, self._selected_cover),
             CONF_COVER_TYPE: _current_cover_type(cover),
-            CONF_INTERMEDIATE_POSITION: cover.get(CONF_INTERMEDIATE_POSITION, True),
-            CONF_INTERMEDIATE_POSITION_UP: cover.get(
-                CONF_INTERMEDIATE_POSITION_UP, VENTILATION_POSITION
-            ),
-            CONF_INTERMEDIATE_POSITION_DOWN: cover.get(
-                CONF_INTERMEDIATE_POSITION_DOWN, INTERMEDIATE_POSITION
-            ),
         }
         for key in (
             CONF_TRAVELLING_TIME_UP,
@@ -735,6 +712,25 @@ class BeckerOptionsFlow(OptionsFlow):
 
         schema = vol.Schema(
             {
+                vol.Required(CONF_INTERMEDIATE_POSITION): BooleanSelector(),
+                vol.Required(CONF_INTERMEDIATE_POSITION_UP): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(CONF_INTERMEDIATE_POSITION_DOWN): NumberSelector(
+                    NumberSelectorConfig(
+                        min=0,
+                        max=100,
+                        step=1,
+                        unit_of_measurement="%",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
                 vol.Required(CONF_TILT_MODE): SelectSelector(
                     SelectSelectorConfig(
                         options=[
@@ -758,6 +754,13 @@ class BeckerOptionsFlow(OptionsFlow):
             }
         )
         suggested = {
+            CONF_INTERMEDIATE_POSITION: cover.get(CONF_INTERMEDIATE_POSITION, True),
+            CONF_INTERMEDIATE_POSITION_UP: cover.get(
+                CONF_INTERMEDIATE_POSITION_UP, VENTILATION_POSITION
+            ),
+            CONF_INTERMEDIATE_POSITION_DOWN: cover.get(
+                CONF_INTERMEDIATE_POSITION_DOWN, INTERMEDIATE_POSITION
+            ),
             CONF_TILT_MODE: _current_tilt_mode(cover),
             CONF_TILT_TIME_BLIND: cover.get(CONF_TILT_TIME_BLIND, TILT_TIME),
         }

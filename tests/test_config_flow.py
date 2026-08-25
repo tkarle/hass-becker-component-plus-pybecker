@@ -187,6 +187,34 @@ def test_update_cover_options_rejects_unsafe_combinations() -> None:
         )
 
 
+def test_update_cover_options_without_intermediate_fields_keeps_existing_values() -> None:
+    """The cover_options step no longer submits intermediate fields (they moved to
+    blind_options); existing per-cover values, or defaults for a new cover, must
+    survive untouched."""
+    existing = {
+        CONF_CHANNEL: "2:3",
+        CONF_FRIENDLY_NAME: "Wohnzimmer links",
+        CONF_INTERMEDIATE_POSITION: True,
+        CONF_INTERMEDIATE_POSITION_UP: 30,
+        CONF_INTERMEDIATE_POSITION_DOWN: 100,
+    }
+    result = update_cover_options(
+        existing,
+        {CONF_FRIENDLY_NAME: "Wohnzimmer links", CONF_COVER_TYPE: COVER_TYPE_SHUTTER},
+    )
+    assert result[CONF_INTERMEDIATE_POSITION] is True
+    assert result[CONF_INTERMEDIATE_POSITION_UP] == 30
+    assert result[CONF_INTERMEDIATE_POSITION_DOWN] == 100
+
+    fresh = update_cover_options(
+        {CONF_CHANNEL: "1:1"},
+        {CONF_FRIENDLY_NAME: "Neu", CONF_COVER_TYPE: COVER_TYPE_SHUTTER},
+    )
+    assert fresh[CONF_INTERMEDIATE_POSITION] is True
+    assert fresh[CONF_INTERMEDIATE_POSITION_UP] == 25
+    assert fresh[CONF_INTERMEDIATE_POSITION_DOWN] == 75
+
+
 def test_shutter_type_never_exposes_tilt_controls() -> None:
     """Roller shutters hide all slat controls even with stale legacy flags."""
     stored = update_cover_options(
