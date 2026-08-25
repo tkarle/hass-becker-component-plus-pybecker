@@ -1,7 +1,7 @@
 # Becker cover support for Home Assistant
 
 > [!WARNING]
-> Version `0.4.0-beta.10` is a development build for Home Assistant 2026.8.
+> Version `0.4.1-beta.6` is a development build for Home Assistant 2026.8.
 > Keep a backup of `centronic-stick.db` and ensure only one controller (the
 > Raspberry Pi MQTT bridge or Home Assistant) can access the Becker sender
 > counters at a time.
@@ -18,6 +18,7 @@ The Becker integration currently supports the following cover operations:
 - Open tilt
 - Close tilt
 - Set cover position
+- Move to a configured sun-protection position
 
 There are three ways to track position of the cover:
 - Add the travel time to configuration
@@ -61,22 +62,26 @@ Each UI-configured cover is registered as its own Home Assistant device in the
 Becker USB hub entry; the hub is not duplicated as a seventh device. Open the
 hub's **Configure** dialog and choose **Configure a
 cover** to edit its name, travel times, optional position template, physical
-remote IDs, intermediate positions and tilt behavior. Providing at least one
-travel time enables position tracking and the position slider; a value template
-can additionally correct the tracked position.
+remote IDs, an optional sun-protection position and tilt behavior. Providing at
+least one travel time enables position tracking and the position slider; a
+value template can additionally correct the tracked position.
 
 Select a native cover type for every device:
 
 - **Roller shutter** uses Home Assistant's shutter device class and never
-  exposes slat controls. Programmed intermediate/ventilation positions remain
-  optional.
+  exposes slat controls or the programmed intermediate-position fields.
 - **Venetian blind with slats** uses Home Assistant's blind device class and
-  opens a separate slat configuration step. Slats can use programmed
-  intermediate commands or short UP/DOWN pulses.
+  opens a separate slat configuration step. There you can enable the
+  programmed intermediate/ventilation positions (with their UP/DOWN
+  percentages) and choose between intermediate-position control or short
+  UP/DOWN tilt pulses.
 
-Existing entries keep their legacy behavior until a type is explicitly saved.
-Changing a type never changes the RF channel, entity unique ID, or rolling
-counter database.
+The programmed intermediate-position toggle and its UP/DOWN percentages only
+ever take effect for venetian blinds, since roller shutters force
+tilt/intermediate handling off regardless; that is why those fields only
+appear in the blind's slat step. Existing entries keep their legacy behavior
+until a type is explicitly saved. Changing a type never changes the RF
+channel, entity unique ID, or rolling counter database.
 
 For SWC545 venetian-blind remotes, short UP/DOWN presses are tracked as slat
 movements without starting a full-position timer. The three-second hold stage
@@ -92,10 +97,50 @@ the receiver then turns the slats horizontally. These physical-remote actions
 are intentionally separate from Home Assistant's configurable intermediate
 position commands.
 
+Older master remotes for venetian blinds (e.g. SWC445) send the legacy
+double-tap packets (`24`/`44`) for a slat-only pulse instead. For a blind
+where neither **Tilt intermediate** nor **Tilt blind** is enabled, receiving
+one of these packets no longer jumps the tracked vertical position to the
+configured intermediate percentage; the vertical position is left unchanged,
+matching the fact that only the slats actually move.
+
 If another controller moves a cover without a packet being received, use the
 `becker.set_known_position` action to correct the estimated position without
 sending another radio command. Select the Becker cover and enter the physically
 observed value from 0 (closed) to 100 (open).
+
+## Sun protection
+
+Every cover has an optional **Sun-protection position** field (percent, `0`
+closed to `100` open). Use it together with the `becker.move_to_sun_protection`
+action to drive a cover to a fixed shading position with one call:
+
+- For a **roller shutter**, the action moves to the configured percentage. A
+  shutter without a configured value raises an error instead of sending an
+  unsuitable radio command, since a shutter has no other native sun-protection
+  behavior to fall back to.
+- For a **venetian blind**, the action uses the configured percentage if set;
+  otherwise it falls back to sending the receiver's own programmed `DOWN2`
+  command (lower the blind and turn the slats horizontal).
+
+The `becker.move_down_intermediate` action sends that same `DOWN2` command
+directly to any Becker cover, independent of the sun-protection position. If
+the cover has a programmed DOWN intermediate position configured, this action
+also updates the tracked Home Assistant position to that value. This is the
+native replacement for the old approach of triggering `cover.close_cover_tilt`
+in tilt mode "intermediate" to reach a learned sun-protection stop.
+
+```yaml
+service: becker.move_to_sun_protection
+target:
+  entity_id: cover.living_room
+```
+
+```yaml
+service: becker.move_down_intermediate
+target:
+  entity_id: cover.living_room
+```
 
 The YAML format below remains available for compatibility and advanced options.
 
