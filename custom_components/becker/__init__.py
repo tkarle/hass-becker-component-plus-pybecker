@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
+from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -24,13 +27,56 @@ from .rf_device import PyBecker
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.COVER]
+BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
+BOOT_STORE_KEY = f"{DOMAIN}.host_boot"
+BOOT_NOTIFICATION_ID = f"{DOMAIN}_host_reboot"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Initialize shared integration data and services."""
     hass.data.setdefault(DOMAIN, {})
+    await _async_warn_after_host_reboot(hass)
     await PyBecker.async_register_services(hass)
     return True
+
+
+async def _async_read_host_boot_id(hass: HomeAssistant) -> str | None:
+    """Read the Linux host boot ID without blocking Home Assistant's event loop."""
+    try:
+        value = await hass.async_add_executor_job(BOOT_ID_PATH.read_text, "utf-8")
+    except OSError:
+        _LOGGER.warning("Could not read host boot ID; Becker reboot warning is unavailable")
+        return None
+    value = value.strip()
+    return value or None
+
+
+async def _async_warn_after_host_reboot(hass: HomeAssistant) -> None:
+    """Warn once when the host, rather than only Home Assistant Core, rebooted."""
+    boot_id = await _async_read_host_boot_id(hass)
+    if boot_id is None:
+        return
+
+    store: Store[dict[str, str]] = Store(hass, 1, BOOT_STORE_KEY)
+    previous = await store.async_load()
+    previous_boot_id = previous.get("boot_id") if previous else None
+    await store.async_save({"boot_id": boot_id})
+
+    if previous_boot_id is None or previous_boot_id == boot_id:
+        return
+
+    persistent_notification.async_create(
+        hass,
+        (
+            "The Home Assistant host has restarted. The Becker Centronic USB stick may "
+            "be visible but unable to transmit radio commands after a cold boot. Unplug "
+            "and reconnect the Becker USB stick before operating covers, then verify one "
+            "cover physically. Home Assistant cannot confirm that radio commands were "
+            "received."
+        ),
+        title="Becker USB stick: check required after host reboot",
+        notification_id=BOOT_NOTIFICATION_ID,
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
