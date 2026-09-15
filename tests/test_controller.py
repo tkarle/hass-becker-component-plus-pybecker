@@ -47,6 +47,27 @@ def test_train_uses_legacy_three_frame_sequence_and_serializes_commands(tmp_path
     assert _unit_increment(filename) == 15
 
 
+def test_first_real_send_recreates_serial_connection_once(tmp_path) -> None:
+    """Cold-start recovery refreshes pySerial before reserving the first counter."""
+    filename = tmp_path / "centronic-stick.db"
+
+    async def exercise() -> None:
+        controller = Becker(device_name="loop://", db_filename=str(filename))
+        try:
+            initial_connection = controller._worker._connection
+            await controller.pair("2:3")
+            refreshed_connection = controller._worker._connection
+            assert refreshed_connection is not initial_connection
+
+            await controller.move_up("2:3")
+            assert controller._worker._connection is refreshed_connection
+        finally:
+            controller.close()
+
+    asyncio.run(exercise())
+    assert _unit_increment(filename) == 4
+
+
 def test_unknown_commands_and_channels_are_rejected(tmp_path) -> None:
     filename = tmp_path / "centronic-stick.db"
 
@@ -71,6 +92,7 @@ def test_ambiguous_write_failure_consumes_counter(tmp_path) -> None:
         controller = Becker(device_name="loop://", db_filename=str(filename))
         try:
             await controller.pair("2:3")
+            old_connection = controller._worker._connection
 
             def fail_write(_packet: bytes) -> None:
                 raise BeckerConnectionError("simulated ambiguous write")
@@ -78,6 +100,7 @@ def test_ambiguous_write_failure_consumes_counter(tmp_path) -> None:
             controller._worker._connection.write = fail_write  # type: ignore[method-assign]
             with pytest.raises(BeckerConnectionError, match="ambiguous"):
                 await controller.move_up("2:3")
+            assert controller._worker._connection is not old_connection
         finally:
             controller.close()
 

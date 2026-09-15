@@ -65,6 +65,7 @@ class _BeckerWorker(threading.Thread):
         self._connection: BeckerConnection | None = None
         self._database: Database | None = None
         self._next_reconnect = 0.0
+        self._first_send_pending = True
 
     @property
     def connected(self) -> bool:
@@ -143,7 +144,8 @@ class _BeckerWorker(threading.Thread):
 
     def _send(self, unit_index: int, channel: int, command: str, test: bool) -> None:
         assert self._database is not None
-        assert self._connection is not None
+        if self._connection is None:
+            raise BeckerConnectionError("Becker USB connection is not available")
 
         command_codes = self._command_codes(command)
         current = self._database.get_unit(unit_index)
@@ -154,10 +156,20 @@ class _BeckerWorker(threading.Thread):
             )
 
         if not test:
+            if self._first_send_pending:
+                # The Becker stick can enumerate successfully during a cold host
+                # boot while remaining unable to transmit. Recreate pySerial once
+                # immediately before the first real command, after HA and the USB
+                # stack have had time to settle. This happens before reserving a
+                # rolling counter, so a failed refresh cannot consume one.
+                self._recreate_connection()
+                if self._connection is None:
+                    raise BeckerConnectionError("Becker USB connection is not available")
             # Opening happens before reservation: a definitely absent USB device does
             # not burn a counter. Any failure after reservation is treated as ambiguous.
             self._connection.open()
             self._connected.set()
+            self._first_send_pending = False
 
         reserved = self._database.reserve(
             unit_index,
@@ -174,6 +186,7 @@ class _BeckerWorker(threading.Thread):
                 self._connection.write(packet)
             except BeckerConnectionError:
                 self._connected.clear()
+                self._recreate_connection()
                 self._next_reconnect = time.monotonic() + RECONNECT_DELAY
                 raise
             PacketParser.log(packet, "Sent packet: ")
@@ -210,8 +223,14 @@ class _BeckerWorker(threading.Thread):
         return packets
 
     def _read_once(self) -> None:
-        assert self._connection is not None
         now = time.monotonic()
+        if self._connection is None:
+            if now < self._next_reconnect:
+                return
+            self._recreate_connection()
+            if self._connection is None:
+                self._next_reconnect = now + RECONNECT_DELAY
+                return
         if not self._connection.is_open and now < self._next_reconnect:
             return
         try:
@@ -223,11 +242,28 @@ class _BeckerWorker(threading.Thread):
                     RECONNECT_DELAY,
                 )
             self._connected.clear()
+            self._recreate_connection()
             self._next_reconnect = now + RECONNECT_DELAY
             return
         self._connected.set()
         if data:
             self._parser.feed(data)
+
+    def _recreate_connection(self) -> None:
+        """Discard and recreate the serial object after an I/O failure."""
+        old_connection = self._connection
+        if old_connection is not None:
+            old_connection.close()
+        try:
+            self._connection = BeckerConnection(self._device)
+        except BeckerConnectionError:
+            self._connection = None
+            _LOGGER.warning(
+                "Could not recreate Becker USB connection; retrying later",
+                exc_info=True,
+            )
+        else:
+            _LOGGER.debug("Recreated Becker USB connection after I/O failure")
 
     def _reject_pending(self, error: BaseException) -> None:
         while True:
