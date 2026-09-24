@@ -1,7 +1,7 @@
 # Becker Centronic USB for Home Assistant
 
 > [!WARNING]
-> **Current version: `0.4.1-beta.9`.** This is a beta build for the Home Assistant 2026.8 development line.
+> **Current version: `0.4.1`.** Stable release for the Home Assistant 2026.8 development line.
 > Back up the sender-counter database before changing installations. Only one controller may use the Becker stick and its database at a time.
 
 This integration controls Becker Centronic roller shutters and venetian blinds through a Becker Centronic USB stick (order numbers 4035 200 041 0 and 4035 000 041 0). It also supports compatible Roto roof-window receivers.
@@ -223,6 +223,8 @@ Pairing and cover actions transmit radio commands. The integration cannot confir
 ## After a Home Assistant host reboot
 
 A cold host reboot can leave the USB stick visible while its radio connection no longer works. If the integration displays **Becker USB stick: check required after host reboot**, follow its instruction: reconnect the USB stick and verify one cover physically before relying on normal operation. A Home Assistant Core restart alone does not normally require this check.
+
+If Home Assistant Core restarts again shortly after a host reboot, the notification may not remain visible. If the stick is unresponsive after a cold boot, reconnect it and verify one cover physically even when the notification is absent.
 
 ## Troubleshooting
 
