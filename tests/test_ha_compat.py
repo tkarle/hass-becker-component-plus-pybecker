@@ -8,7 +8,7 @@ from custom_components import becker
 from custom_components.becker import config_flow, cover, rf_device
 
 
-def test_home_assistant_2026_8_imports() -> None:
+def test_home_assistant_2026_10_imports() -> None:
     """Load every HA-facing integration module on the target Core version."""
     assert becker and config_flow and cover and rf_device
-    assert version("homeassistant") == "2026.8.1"
+    assert version("homeassistant") == "2026.10.2"

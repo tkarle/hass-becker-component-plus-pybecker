@@ -12,14 +12,17 @@ from homeassistant.const import CONF_DEVICE, CONF_FILENAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_MIGRATION_PENDING,
     DATA_CONFIG_ENTRY_ACTIVE,
+    DEFAULT_HUB_TITLE,
     DOMAIN,
     HUB_UNIQUE_ID,
+    MANUFACTURER,
 )
 from .pybecker.becker_helper import BeckerConnectionError
 from .rf_device import PyBecker
@@ -106,17 +109,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except (BeckerConnectionError, OSError, ValueError) as err:
         raise ConfigEntryError(str(err)) from err
 
-    # Beta 3 briefly registered the USB stick as an additional device. The
-    # config entry itself already represents that hub in Home Assistant, so
-    # the extra device duplicated the hub row and inflated the device count.
-    device_registry = dr.async_get(hass)
-    duplicate_hub = device_registry.async_get_device(
-        identifiers={(DOMAIN, HUB_UNIQUE_ID)}
-    )
-    if duplicate_hub and entry.entry_id in duplicate_hub.config_entries:
-        device_registry.async_remove_device(duplicate_hub.id)
-
     try:
+        _async_remove_unused_legacy_hub(hass, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
         await PyBecker.async_shutdown()
@@ -124,6 +118,53 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data[DATA_CONFIG_ENTRY_ACTIVE] = entry.entry_id
 
     return True
+
+
+def _async_remove_unused_legacy_hub(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove only an unused extra USB device registered by beta 3."""
+    device_registry = dr.async_get(hass)
+    duplicate_hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, HUB_UNIQUE_ID), entry.entry_id
+    )
+    if duplicate_hub is None:
+        return
+
+    # The entry represents the hub already; never create a replacement device.
+    # Preserve ambiguous records and user assignments, even without entities.
+    if (
+        duplicate_hub.config_entry_id != entry.entry_id
+        or duplicate_hub.identifiers != {(DOMAIN, HUB_UNIQUE_ID)}
+        or duplicate_hub.connections
+        or duplicate_hub.manufacturer != MANUFACTURER
+        or duplicate_hub.model != "Centronic USB Stick"
+        or duplicate_hub.name != DEFAULT_HUB_TITLE
+        or duplicate_hub.config_subentry_id is not None
+        or duplicate_hub.composite_device_id is not None
+        or duplicate_hub.area_id is not None
+        or duplicate_hub.name_by_user is not None
+        or duplicate_hub.labels
+        or duplicate_hub.via_device_id is not None
+    ):
+        reason = "legacy identity is ambiguous or device has user assignments"
+    elif er.async_entries_for_device(
+        er.async_get(hass), duplicate_hub.id, include_disabled_entities=True
+    ):
+        reason = "device has registered entities (including disabled entities)"
+    elif dr.async_entries_for_parent_device(device_registry, duplicate_hub.id):
+        reason = "device has child devices"
+    elif any(
+        device.via_device_id == duplicate_hub.id
+        for config_entry in hass.config_entries.async_entries()
+        for device in dr.async_entries_for_config_entry(device_registry, config_entry.entry_id)
+    ):
+        # A via-device link can originate in another integration's entry.
+        reason = "device has dependent devices linked by via_device_id"
+    else:
+        device_registry.async_remove_device(duplicate_hub.id)
+        _LOGGER.debug("Removed unused legacy Becker hub device %s", duplicate_hub.id)
+        return
+
+    _LOGGER.warning("Keeping legacy Becker hub device %s: %s", duplicate_hub.id, reason)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

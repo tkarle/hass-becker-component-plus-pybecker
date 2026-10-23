@@ -1,7 +1,7 @@
 # Becker Centronic USB for Home Assistant
 
 > [!WARNING]
-> **Current version: `0.4.1`.** Stable release for the Home Assistant 2026.8 development line.
+> **Current version: `0.4.2-beta.1`.** Requires Home Assistant Core **2026.10.2 or newer**.
 > Back up the sender-counter database before changing installations. Only one controller may use the Becker stick and its database at a time.
 
 This integration controls Becker Centronic roller shutters and venetian blinds through a Becker Centronic USB stick (order numbers 4035 200 041 0 and 4035 000 041 0). It also supports compatible Roto roof-window receivers.
@@ -22,6 +22,14 @@ The integration sends radio commands through the USB stick. Receivers do not rep
 This integration creates one Becker USB hub entry. Each configured cover appears as its own Home Assistant device under that hub.
 
 ## Install
+
+Home Assistant Core 2026.10.2 is the minimum supported version and the pinned
+test target. This version uses the entry-scoped device registry API and public
+child-device helpers without a deprecated lookup fallback. During setup, only
+an unused extra USB hub device from beta 3 is removed. Devices with entities
+(including disabled entities), child devices, via-device dependents or user
+assignments are retained with a warning for manual review. Existing cover devices
+and their assignments are preserved.
 
 ### HACS
 
