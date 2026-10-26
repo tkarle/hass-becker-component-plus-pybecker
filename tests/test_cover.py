@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from homeassistant.components.cover import CoverDeviceClass, CoverEntityFeature
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.template import Template
 
 from custom_components.becker.const import (
     COVER_TYPE_BLIND,
@@ -21,6 +23,62 @@ from custom_components.becker.pybecker.becker_helper import (
     finalize_code,
     generate_code,
 )
+
+
+@pytest.mark.parametrize("cover_type", [COVER_TYPE_BLIND, COVER_TYPE_SHUTTER])
+@pytest.mark.parametrize("position", [0, 100])
+@pytest.mark.parametrize("source", ["travel_time", "last_command", "template", "combined"])
+def test_estimated_endpoints_publish_assumed_state(tmp_path, cover_type, position, source):
+    """HA must expose repeatable controls for every currently supported position source."""
+    async def exercise():
+        hass = HomeAssistant(str(tmp_path))
+        becker = Mock(connected=True)
+        template = Template("{{ 0 }}", hass) if source in ("template", "combined") else None
+        travel_time = 30 if source in ("travel_time", "combined") else None
+        entity = BeckerEntity(
+            becker, "Existing cover", "2:3", cover_type, template, None,
+            travel_time, travel_time, 100, 0, True, False, False, 0.3,
+        )
+        entity.hass = hass
+        entity.entity_id = "cover.existing_cover"
+        entity._tc.set_position(100 - position)
+        try:
+            # Exercise HA's state serializer without registering a live platform.
+            entity._async_write_ha_state()
+            state = hass.states.get(entity.entity_id)
+            assert state is not None
+            assert state.attributes.get("assumed_state") is True
+            assert state.attributes["current_position"] == position
+            assert state.state == ("closed" if position == 0 else "open")
+            assert bool(entity.supported_features & CoverEntityFeature.SET_POSITION) == (
+                travel_time is not None
+            )
+            assert not becker.method_calls
+        finally:
+            await hass.async_stop()
+    asyncio.run(exercise())
+
+
+def test_close_from_sun_protection_still_sends_normal_down():
+    """A DOWN2 target at 0% must not suppress a subsequent normal DOWN command."""
+    becker = Mock(connected=True)
+    becker.move_down = AsyncMock()
+    becker.move_down_intermediate = AsyncMock()
+    entity = BeckerEntity(
+        becker, "Wohnzimmer links", "2:3", COVER_TYPE_BLIND, None, None,
+        60, 63.5, 100, 0, True, False, False, 0.3,
+    )
+    entity._tc.set_position(100)
+    entity._update_scheduled_ha_state_callback = Mock()
+
+    asyncio.run(entity.async_move_to_sun_protection())
+    assert entity.current_cover_position == 0
+    asyncio.run(entity.async_close_cover())
+
+    assert entity.assumed_state is True
+    becker.move_down_intermediate.assert_awaited_once_with("2:3")
+    becker.move_down.assert_awaited_once_with("2:3")
+    assert entity.current_cover_position == 0
 
 
 def test_config_entry_cover_has_device_info_and_combined_position_tracking() -> None:

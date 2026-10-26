@@ -1,7 +1,7 @@
 # Becker Centronic USB for Home Assistant
 
 > [!WARNING]
-> **Current version: `0.4.2-beta.1`.** Requires Home Assistant Core **2026.10.2 or newer**.
+> **Current version: `0.4.2-beta.2`.** Requires Home Assistant Core **2026.10.2 or newer**.
 > Back up the sender-counter database before changing installations. Only one controller may use the Becker stick and its database at a time.
 
 This integration controls Becker Centronic roller shutters and venetian blinds through a Becker Centronic USB stick (order numbers 4035 200 041 0 and 4035 000 041 0). It also supports compatible Roto roof-window receivers.
@@ -13,6 +13,7 @@ The integration sends radio commands through the USB stick. Receivers do not rep
 - Open, close and stop covers.
 - Set a cover position when travel times are configured.
 - Estimate position from travel times, physical remote commands and an optional value template.
+- Mark cover states as estimated so compatible dashboards keep open and close available at end positions.
 - Configure venetian-blind slat control using programmed intermediate positions or short tilt pulses.
 - Move to a configured sun-protection position.
 - Correct the estimated position without sending a radio command.
@@ -70,6 +71,19 @@ The integration has no receiver feedback. Configure at least one full travel tim
 - Home Assistant restores the last estimated position after a restart. This estimate can drift if a command is missed or another controller moves the cover without the integration receiving its remote packet.
 
 Use a physically observed position to correct the estimate with [Set known position](#actions-and-services). That correction sends no radio command.
+
+All Becker covers automatically publish `assumed_state: true`, including
+existing covers, covers without travel times and covers using a position value
+template. A template alone does not establish real receiver feedback. No setup
+checkbox, YAML customization or reconfiguration is needed after updating.
+
+Home Assistant and compatible cards such as Bubble Card can therefore keep
+both open and close available at estimated 0% and 100% positions. This also
+allows a normal close command after sun protection has lowered a venetian blind
+to 0% with its slats still open. The percentage continues to describe height;
+the integration does not track a separate slat angle. An unavailable cover
+remains unavailable. Position sliders and sun-protection services retain their
+existing behavior; use the close action to send another normal DOWN command.
 
 ## Edit the hub or a cover
 

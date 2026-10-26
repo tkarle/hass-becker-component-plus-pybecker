@@ -316,6 +316,10 @@ async def _async_setup_covers(config, async_add_entities, *, create_devices=Fals
 class BeckerEntity(CoverEntity, RestoreEntity):
     """Representation of a Becker cover entity."""
 
+    # Centronic has no receiver feedback. Templates may also supply estimates;
+    # keep repeat open/close commands available at estimated end positions.
+    _attr_assumed_state = True
+
     def __init__(
         self,
         becker,
